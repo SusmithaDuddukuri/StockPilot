@@ -95,6 +95,15 @@ class OperationsAPITests(unittest.TestCase):
         self.tmp.cleanup()
 
 
+
+    def test_fulfillment_velocity_endpoint(self):
+        response = self.client.get('/api/ops/analytics/fulfillment-velocity')
+        self.assertEqual(response.status_code, 200)
+        data = response.get_json()
+        self.assertIn('status_distribution', data)
+        self.assertIn('shipped_rate_percent', data)
+        self.assertGreater(data['total_orders'], 0)
+
     def test_supplier_performance_tiers_endpoint(self):
         response = self.client.get('/api/ops/suppliers/performance-tiers')
         self.assertEqual(response.status_code, 200)

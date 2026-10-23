@@ -624,3 +624,52 @@ def suppliers_performance_tiers():
         "supplier_count": len(results),
         "tiers": results
     })
+@bp.get('/analytics/fulfillment-velocity')
+def analytics_fulfillment_velocity():
+    """Analyze fulfillment flow velocity, status ratios, and order backlog age."""
+    with db() as cx:
+        orders = [dict(row) for row in cx.execute(
+            """
+            SELECT
+                id,
+                customer,
+                status,
+                item_count,
+                destination,
+                created_at
+            FROM orders
+            ORDER BY id DESC
+            """
+        ).fetchall()]
+
+    total_orders = len(orders)
+    total_units = sum(int(o["item_count"]) for o in orders)
+    status_counts = {}
+    dest_counts = {}
+    open_orders_list = []
+
+    for o in orders:
+        st = o["status"]
+        status_counts[st] = status_counts.get(st, 0) + 1
+        dest = o["destination"]
+        dest_counts[dest] = dest_counts.get(dest, 0) + 1
+
+        if st != "Shipped":
+            open_orders_list.append(o)
+
+    shipped_count = status_counts.get("Shipped", 0)
+    shipped_pct = round((shipped_count / total_orders * 100), 1) if total_orders else 0.0
+    backlog_count = len(open_orders_list)
+    backlog_pct = round((backlog_count / total_orders * 100), 1) if total_orders else 0.0
+
+    return jsonify({
+        "total_orders": total_orders,
+        "total_units": total_units,
+        "shipped_orders": shipped_count,
+        "shipped_rate_percent": shipped_pct,
+        "backlog_orders": backlog_count,
+        "backlog_rate_percent": backlog_pct,
+        "status_distribution": status_counts,
+        "destination_distribution": dest_counts,
+        "backlog_sample": open_orders_list[:10]
+    })
