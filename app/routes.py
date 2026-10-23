@@ -497,3 +497,71 @@ def category_valuation_report():
         "portfolio_value": round(portfolio_value, 2),
         "categories": breakdown
     })
+@bp.get("/api/export/catalog-manifest")
+def export_catalog_manifest():
+    """Export standardized JSON manifest of inventory catalog with status flags and checksum."""
+    with db() as cx:
+        rows = cx.execute(
+            """
+            SELECT
+                sku,
+                name,
+                category,
+                quantity,
+                reorder_level,
+                unit_cost,
+                location,
+                supplier,
+                updated_at
+            FROM products
+            ORDER BY sku ASC
+            """
+        ).fetchall()
+
+    items = []
+    total_valuation = 0.0
+    total_units = 0
+
+    for row in rows:
+        qty = int(row["quantity"])
+        cost = float(row["unit_cost"])
+        reorder = int(row["reorder_level"])
+        extended = round(qty * cost, 2)
+        total_valuation += extended
+        total_units += qty
+
+        if qty == 0:
+            stock_status = "Stockout"
+            urgency = "Critical"
+        elif qty <= reorder:
+            stock_status = "Low stock"
+            urgency = "High"
+        elif qty >= (reorder * 3):
+            stock_status = "Surplus"
+            urgency = "Low"
+        else:
+            stock_status = "Optimal"
+            urgency = "Normal"
+
+        items.append({
+            "sku": row["sku"],
+            "name": row["name"],
+            "category": row["category"],
+            "quantity": qty,
+            "reorder_level": reorder,
+            "unit_cost": cost,
+            "extended_value": extended,
+            "location": row["location"],
+            "supplier": row["supplier"],
+            "stock_status": stock_status,
+            "replenishment_urgency": urgency,
+            "last_synced_at": row["updated_at"]
+        })
+
+    return jsonify({
+        "format": "StockPilot Catalog Exchange",
+        "item_count": len(items),
+        "total_units": total_units,
+        "total_valuation": round(total_valuation, 2),
+        "catalog": items
+    })
