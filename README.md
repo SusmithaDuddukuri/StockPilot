@@ -164,3 +164,27 @@ StockPilot includes 700 lazily loaded policy packs with 24 executable controls e
 - Each result identifies triggered controls, severity, observed values, thresholds, and recommended corrective action. Missing and invalid measurements are surfaced rather than silently treated as passing.
 
 The policy engine is an operational rule library; thresholds are starter controls and must be calibrated to each facility's documented SOPs and regulatory obligations before production use.
+
+
+## Advanced Operations & Logistics Modules
+
+StockPilot features 11 advanced operations and logistics microservices with automated unit test validation:
+
+| Subsystem | Primary Endpoints | Key Capabilities |
+|---|---|---|
+| **Statistical Safety Stock Engine** | `GET /api/replenishment/dynamic-safety-stock` | Statistical Z-score demand variance modeling, dynamic reorder points, and buffer breach prioritization. |
+| **Deadstock & Liquidation Analysis** | `GET /api/reports/deadstock-analysis` | Evaluates zero-movement inventory holding risk and generates tiered liquidation markdown pricing (20% - 40%). |
+| **Outbound Shipping Manifest & BOL** | `GET /api/shipping/manifest`, `.csv` | Generates verified carrier trailer dispatch manifests and downloadable CSV Bills of Lading. |
+| **Backorder Priority Queue** | `GET /api/orders/backorders/queue`, `POST .../release-to-picking` | Fair-share FIFO backorder allocation engine with automated transition into active picking. |
+| **Barcode Symbology Verification** | `POST /api/barcode/verify`, `GET /api/barcode/label-spec/<sku>` | Code 128, GS1-128, and EAN-13 barcode validation with Modulo-10 check digit computation and label specs. |
+| **Cold Chain Storage Telemetry** | `POST /api/cold-chain/log-reading`, `GET .../status` | WHO GDP compliant temperature logging across Frozen, Refrigerated, and CRT zones with automated excursion containment alerts. |
+| **Cross-Docking Direct Router** | `POST /api/cross-dock/match`, `GET /api/cross-dock/lanes` | Inbound arrival matching against pending orders to bypass pallet racking and assign outbound staging lanes. |
+| **Delivery Exception Handling** | `POST /api/shipping/exceptions/record`, `.../resolve` | Standardized courier exception triage, failed attempt counters, and mid-transit address rerouting. |
+| **Carrier SLA Compliance Engine** | `GET /api/carrier-compliance/scorecards`, `.../audit-summary` | Automated on-time delivery (OTD) percentage scoring, partner tier assignment (Tier 1 - 4), and breach rebate tracking. |
+| **Hazardous Materials Segregation** | `POST /api/hazmat/validate-storage`, `GET .../hazard-classes` | OSHA 1910.120 / DOT 49 CFR chemical compatibility validation and secondary containment basin enforcement. |
+| **Inbound Landed Cost Calculator** | `POST /api/finance/landed-cost/calculate`, `.../catalog-estimates` | Fully absorbed unit landed valuation apportioning ocean/air freight, customs tariffs, cargo insurance, and handling fees. |
+
+### Continuous Integration & API Specifications
+- **CI/CD Pipeline**: Automated GitHub Actions workflow (`.github/workflows/ci.yml`) running Python 3.11 and 3.12 test matrices.
+- **OpenAPI 3.0 Specification**: Standardized API documentation available at `docs/openapi.yaml`.
+- **Test Suite**: Run `python -m unittest discover tests/` to execute all unit and integration test suites.
