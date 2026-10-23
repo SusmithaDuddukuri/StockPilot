@@ -55,6 +55,16 @@ class StockPilotTests(unittest.TestCase):
         self.assertIn(b'SKU,Product,Category', r.data)
 
 
+
+    def test_export_catalog_manifest_endpoint(self):
+        r = self.client.get('/api/export/catalog-manifest')
+        self.assertEqual(r.status_code, 200)
+        data = r.get_json()
+        self.assertEqual(data['format'], 'StockPilot Catalog Exchange')
+        self.assertGreater(data['item_count'], 0)
+        self.assertIn('total_valuation', data)
+        self.assertTrue(all('stock_status' in item for item in data['catalog']))
+
     def test_category_valuation_report(self):
         r = self.client.get('/api/reports/category-valuation')
         self.assertEqual(r.status_code, 200)
