@@ -113,6 +113,13 @@ CREATE TABLE IF NOT EXISTS safety_inspections (
  action_required TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_safety_zone ON safety_inspections(zone, created_at DESC);
+CREATE TABLE IF NOT EXISTS inventory_quarantine (
+ id INTEGER PRIMARY KEY AUTOINCREMENT, quarantine_number TEXT NOT NULL UNIQUE, sku TEXT NOT NULL REFERENCES products(sku),
+ quantity INTEGER NOT NULL CHECK(quantity > 0), reason TEXT NOT NULL, inspector TEXT NOT NULL DEFAULT 'Quality Assurance',
+ status TEXT NOT NULL DEFAULT 'Under Inspection', disposition TEXT NOT NULL DEFAULT 'Pending',
+ note TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_quarantine_sku ON inventory_quarantine(sku, status);
 '''
 
 _original_init_db = init_db

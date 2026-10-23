@@ -706,3 +706,83 @@ def inspections_create():
             return jsonify(dict(cx.execute('SELECT * FROM safety_inspections WHERE id = ?', (cur.lastrowid,)).fetchone())), 201
 
     return handle_error(work)
+@bp.get('/quarantine')
+def quarantine_list():
+    """List inventory lots held in quarantine inspection."""
+    return jsonify(rows('SELECT q.*, p.name AS product_name FROM inventory_quarantine q JOIN products p USING(sku) ORDER BY q.id DESC LIMIT 500'))
+
+
+@bp.post('/quarantine')
+def quarantine_create():
+    """Place inventory lot into quarantine hold for inspection."""
+    data = body()
+    def work():
+        number = required_text(data, 'quarantine_number', maximum=40).upper()
+        sku = required_text(data, 'sku', maximum=40).upper()
+        qty = integer(data, 'quantity', minimum=1)
+        reason = required_text(data, 'reason', maximum=200)
+        inspector = optional_text(data, 'inspector', 100) or 'Quality Assurance'
+        note = optional_text(data, 'note', 300)
+
+        with db() as cx:
+            item = cx.execute('SELECT quantity FROM products WHERE sku = ?', (sku,)).fetchone()
+            if not item:
+                raise LookupError('Product not found.')
+            if item['quantity'] < qty:
+                raise ValidationError('Quarantine quantity exceeds available on-hand stock.')
+
+            cx.execute('UPDATE products SET quantity = quantity - ?, updated_at = CURRENT_TIMESTAMP WHERE sku = ?', (qty, sku))
+            cx.execute('INSERT INTO movements (sku, delta, note) VALUES (?, ?, ?)', (sku, -qty, f'Quarantine hold: {number}'))
+
+            cur = cx.execute(
+                """
+                INSERT INTO inventory_quarantine
+                (quarantine_number, sku, quantity, reason, inspector, status, disposition, note)
+                VALUES (?, ?, ?, ?, ?, 'Under Inspection', 'Pending', ?)
+                """,
+                (number, sku, qty, reason, inspector, note)
+            )
+            record_event(cx, 'inventory.quarantine_hold', 'quarantine', number, f'Quarantined {qty} units of {sku} for: {reason}.', inspector)
+            return jsonify(dict(cx.execute('SELECT * FROM inventory_quarantine WHERE id = ?', (cur.lastrowid,)).fetchone())), 201
+
+    return handle_error(work)
+
+
+@bp.patch('/quarantine/<number>')
+def quarantine_resolve(number):
+    """Resolve quarantine inspection by releasing to stock or scrapping."""
+    data = body()
+    def work():
+        status = required_text(data, 'status', maximum=40)
+        disposition = required_text(data, 'disposition', maximum=40)
+        actor = optional_text(data, 'resolved_by', 100) or 'Quality Assurance'
+
+        if disposition not in {'Release to Stock', 'Scrap', 'Return to Vendor'}:
+            raise ValidationError('Invalid quarantine disposition.')
+
+        with db() as cx:
+            lot = cx.execute('SELECT * FROM inventory_quarantine WHERE quarantine_number = ?', (number,)).fetchone()
+            if not lot:
+                raise LookupError('Quarantine record not found.')
+            if lot['status'] in {'Released', 'Scrapped', 'Closed'}:
+                raise ValidationError('Quarantine record is already resolved.')
+
+            qty = lot['quantity']
+            sku = lot['sku']
+
+            if disposition == 'Release to Stock':
+                cx.execute('UPDATE products SET quantity = quantity + ?, updated_at = CURRENT_TIMESTAMP WHERE sku = ?', (qty, sku))
+                cx.execute('INSERT INTO movements (sku, delta, note) VALUES (?, ?, ?)', (sku, qty, f'Quarantine release: {number}'))
+
+            cx.execute(
+                """
+                UPDATE inventory_quarantine
+                SET status = ?, disposition = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE quarantine_number = ?
+                """,
+                (status, disposition, number)
+            )
+            record_event(cx, 'inventory.quarantine_resolved', 'quarantine', number, f'Quarantine {number} resolved as {disposition}.', actor)
+            return jsonify(dict(cx.execute('SELECT * FROM inventory_quarantine WHERE quarantine_number = ?', (number,)).fetchone()))
+
+    return handle_error(work)
