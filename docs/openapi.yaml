@@ -1,0 +1,187 @@
+openapi: 3.0.3
+info:
+  title: StockPilot Warehouse & Inventory Operations API
+  description: >
+    Enterprise warehouse operations API for inventory lifecycle tracking, dynamic safety stock,
+    carrier SLA compliance, cross-docking, hazmat segregation, and cold chain telemetry.
+  version: 2.1.0
+servers:
+  - url: http://127.0.0.1:8000
+    description: Local development instance
+paths:
+  /api/overview:
+    get:
+      summary: High-level warehouse inventory metrics
+      responses:
+        '200':
+          description: Aggregated inventory and stock valuation summary
+
+  /api/products:
+    get:
+      summary: Search and filter catalog products
+      parameters:
+        - name: q
+          in: query
+          schema:
+            type: string
+        - name: category
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of matching products
+
+  /api/reports/deadstock-analysis:
+    get:
+      summary: Identify stagnant inventory and liquidation markdown pricing
+      parameters:
+        - name: category
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Deadstock analysis with liquidation discount tiers
+
+  /api/replenishment/dynamic-safety-stock:
+    get:
+      summary: Calculate statistical safety stock and dynamic reorder points
+      parameters:
+        - name: service_level
+          in: query
+          schema:
+            type: string
+            enum: ["90", "95", "99"]
+            default: "95"
+      responses:
+        '200':
+          description: Dynamic buffer evaluation across catalog
+
+  /api/shipping/manifest:
+    get:
+      summary: Generate carrier trailer dispatch manifest
+      parameters:
+        - name: carrier
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Outbound shipping manifest
+
+  /api/orders/backorders/queue:
+    get:
+      summary: Inspect FIFO priority queue for backordered customer orders
+      responses:
+        '200':
+          description: Ranked backorder allocation queue
+
+  /api/barcode/verify:
+    post:
+      summary: Verify barcode symbology (Code 128, GS1-128, EAN-13)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [barcode]
+              properties:
+                barcode:
+                  type: string
+                symbology:
+                  type: string
+      responses:
+        '200':
+          description: Verification report with scan grade and check digit validity
+
+  /api/cold-chain/log-reading:
+    post:
+      summary: Ingest temperature sensor telemetry and trigger excursion alerts
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [zone_type, temperature_celsius]
+              properties:
+                zone:
+                  type: string
+                zone_type:
+                  type: string
+                  enum: [frozen, refrigerated, controlled_room_temperature]
+                temperature_celsius:
+                  type: number
+      responses:
+        '200':
+          description: Climate evaluation and excursion containment status
+
+  /api/cross-dock/match:
+    post:
+      summary: Match arriving stock against open orders to bypass pallet racking
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [sku, quantity]
+              properties:
+                sku:
+                  type: string
+                quantity:
+                  type: integer
+      responses:
+        '200':
+          description: Cross-dock routing decision and staging lane assignment
+
+  /api/carrier-compliance/scorecards:
+    get:
+      summary: Evaluate third-party parcel carrier SLA performance scorecards
+      responses:
+        '200':
+          description: On-time delivery percentages and breach flags
+
+  /api/hazmat/validate-storage:
+    post:
+      summary: Validate hazardous material storage location and chemical segregation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [hazard_class, location]
+              properties:
+                hazard_class:
+                  type: string
+                location:
+                  type: string
+      responses:
+        '200':
+          description: Storage compliance confirmation
+
+  /api/finance/landed-cost/calculate:
+    post:
+      summary: Compute unit landed cost with apportioned freight and tariffs
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [base_unit_cost, quantity]
+              properties:
+                base_unit_cost:
+                  type: number
+                quantity:
+                  type: integer
+                freight_charge:
+                  type: number
+                customs_duty_pct:
+                  type: number
+      responses:
+        '200':
+          description: Landed cost breakdown and overhead markup
