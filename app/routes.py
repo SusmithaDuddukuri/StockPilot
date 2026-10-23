@@ -362,3 +362,35 @@ def export_csv():
                 "attachment; filename=stockpilot-inventory.csv"
         }
     )
+
+@bp.get("/api/alerts/low-stock")
+def low_stock_alerts():
+    with db() as cx:
+        rows = cx.execute(
+            """
+            SELECT
+                sku,
+                name,
+                category,
+                quantity,
+                reorder_level,
+                location,
+                supplier,
+                CASE
+                    WHEN quantity = 0 THEN 'Out of stock'
+                    ELSE 'Low stock'
+                END AS alert_type,
+                MAX(0, reorder_level - quantity) AS shortage
+            FROM products
+            WHERE quantity <= reorder_level
+            ORDER BY
+                CASE WHEN quantity = 0 THEN 0 ELSE 1 END,
+                quantity ASC,
+                name ASC
+            """
+        ).fetchall()
+
+    return jsonify({
+        "count": len(rows),
+        "alerts": [dict(row) for row in rows]
+    })
