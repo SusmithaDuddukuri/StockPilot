@@ -56,6 +56,15 @@ class StockPilotTests(unittest.TestCase):
 
 
 
+
+    def test_replenishment_recommendations_endpoint(self):
+        r = self.client.get('/api/replenishment/recommendations')
+        self.assertEqual(r.status_code, 200)
+        data = r.get_json()
+        self.assertIn('recommendations', data)
+        self.assertIn('total_estimated_budget', data)
+        self.assertTrue(all('suggested_order_units' in item for item in data['recommendations']))
+
     def test_export_catalog_manifest_endpoint(self):
         r = self.client.get('/api/export/catalog-manifest')
         self.assertEqual(r.status_code, 200)
