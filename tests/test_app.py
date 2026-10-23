@@ -54,6 +54,16 @@ class StockPilotTests(unittest.TestCase):
         self.assertIn('text/csv', r.content_type)
         self.assertIn(b'SKU,Product,Category', r.data)
 
+
+    def test_category_valuation_report(self):
+        r = self.client.get('/api/reports/category-valuation')
+        self.assertEqual(r.status_code, 200)
+        data = r.get_json()
+        self.assertIn('categories', data)
+        self.assertGreater(data['category_count'], 0)
+        self.assertIn('portfolio_value', data)
+        self.assertTrue(all('portfolio_share_percent' in c for c in data['categories']))
+
     def test_warehouse_bin_utilization(self):
         r = self.client.get('/api/warehouse/bin-utilization')
         self.assertEqual(r.status_code, 200)

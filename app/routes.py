@@ -455,3 +455,45 @@ def warehouse_bin_utilization():
         "overall_utilization_percent": overall_utilization,
         "bins": bins
     })
+@bp.get("/api/reports/category-valuation")
+def category_valuation_report():
+    """Generate category-level breakdown of inventory volume, valuation, and portfolio share."""
+    with db() as cx:
+        rows = cx.execute(
+            """
+            SELECT
+                category,
+                COUNT(sku) AS sku_count,
+                COALESCE(SUM(quantity), 0) AS total_units,
+                COALESCE(AVG(unit_cost), 0.0) AS avg_unit_cost,
+                COALESCE(SUM(quantity * unit_cost), 0.0) AS total_value,
+                SUM(CASE WHEN quantity <= reorder_level THEN 1 ELSE 0 END) AS low_stock_skus
+            FROM products
+            GROUP BY category
+            ORDER BY total_value DESC, category ASC
+            """
+        ).fetchall()
+
+    portfolio_value = sum(float(row["total_value"]) for row in rows)
+    portfolio_units = sum(int(row["total_units"]) for row in rows)
+
+    breakdown = []
+    for row in rows:
+        val = round(float(row["total_value"]), 2)
+        share = round((val / portfolio_value * 100), 2) if portfolio_value else 0.0
+        breakdown.append({
+            "category": row["category"],
+            "sku_count": int(row["sku_count"]),
+            "total_units": int(row["total_units"]),
+            "average_unit_cost": round(float(row["avg_unit_cost"]), 2),
+            "total_value": val,
+            "portfolio_share_percent": share,
+            "low_stock_skus": int(row["low_stock_skus"])
+        })
+
+    return jsonify({
+        "category_count": len(breakdown),
+        "portfolio_units": portfolio_units,
+        "portfolio_value": round(portfolio_value, 2),
+        "categories": breakdown
+    })
