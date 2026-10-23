@@ -13,6 +13,7 @@ from .services import cold_chain
 from .services import cross_docking
 from .services import delivery_exceptions
 from .services import carrier_compliance
+from .services import hazmat
 
 bp = Blueprint("main", __name__)
 
@@ -1432,4 +1433,48 @@ def carrier_compliance_audit_summary():
         "in_transit_parcels": in_transit,
         "network_on_time_performance": network_on_time,
         "network_status": "Healthy" if network_on_time >= 95.0 else "Action Required"
+    }), 200
+
+
+@bp.post("/api/hazmat/validate-storage")
+def validate_hazmat_endpoint():
+    """Verify safety segregation and containment compliance for hazardous inventory."""
+    data = request.get_json(silent=True) or {}
+    hazard_class = data.get("hazard_class", "NON_HAZARDOUS")
+    location = data.get("location", "")
+    neighboring_classes = data.get("neighboring_hazard_classes", [])
+    sku = data.get("sku")
+
+    if not location:
+        return jsonify(error="location is required."), 400
+
+    try:
+        result = hazmat.validate_hazmat_storage(hazard_class, location, neighboring_classes)
+    except Exception as exc:
+        return jsonify(error=str(exc)), 400
+
+    if sku:
+        result["sku"] = sku
+
+    if not result["compliant"]:
+        with db() as cx:
+            record_event(
+                cx,
+                "safety.hazmat_violation",
+                "location",
+                location,
+                f"Hazmat storage violation: {result['status_detail']}"
+            )
+
+    status_code = 200 if result["compliant"] else 422
+    return jsonify(result), status_code
+
+
+@bp.get("/api/hazmat/hazard-classes")
+def list_hazard_classes():
+    """Return all regulated hazardous material classifications and containment protocols."""
+    return jsonify({
+        "supported_classes": hazmat.HAZARD_CLASSES,
+        "regulatory_governance": "OSHA 1910.120 & DOT 49 CFR Part 173 Guidelines",
+        "spill_kit_inspection_frequency_days": 30
     }), 200
