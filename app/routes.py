@@ -7,6 +7,7 @@ from flask import Blueprint, current_app, jsonify, render_template, request, Res
 
 from .store import connect
 from .services import planning
+from .services import barcode_service
 
 bp = Blueprint("main", __name__)
 
@@ -995,3 +996,72 @@ def export_shipping_manifest_csv():
         mimetype="text/csv",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'}
     )
+
+
+@bp.post("/api/barcode/verify")
+def verify_barcode_endpoint():
+    """Verify barcode symbology compliance and calculate check digits."""
+    data = request.get_json(silent=True) or {}
+    code = data.get("barcode", "")
+    symbology = data.get("symbology", "Code128")
+    sku = data.get("sku")
+
+    result = barcode_service.verify_barcode(code, symbology)
+
+    if sku:
+        with db() as cx:
+            product = cx.execute("SELECT sku, name, location FROM products WHERE sku = ?", (sku,)).fetchone()
+            if product:
+                result["linked_product"] = {
+                    "sku": product["sku"],
+                    "name": product["name"],
+                    "location": product["location"]
+                }
+            else:
+                result["linked_product"] = None
+
+    status_code = 200 if result.get("valid") else 422
+    return jsonify(result), status_code
+
+
+@bp.get("/api/barcode/label-spec/<sku>")
+def get_label_spec(sku):
+    """Generate standardized shelf and packaging label specification for a SKU."""
+    with db() as cx:
+        product = cx.execute(
+            "SELECT sku, name, category, location, unit_cost FROM products WHERE sku = ?",
+            (sku,)
+        ).fetchone()
+
+    if not product:
+        return jsonify(error="Product not found."), 404
+
+    # Calculate default EAN-13 payload based on SKU numbers or fallback
+    digits = re.sub(r"\D", "", sku)
+    if len(digits) >= 12:
+        ean_base = digits[:12]
+    else:
+        ean_base = (digits + "000000000000")[:12]
+
+    ean_check = barcode_service.calculate_ean13_check_digit(ean_base)
+    ean13_code = f"{ean_base}{ean_check}"
+
+    return jsonify({
+        "sku": product["sku"],
+        "name": product["name"],
+        "category": product["category"],
+        "warehouse_location": product["location"],
+        "primary_symbology": "Code 128",
+        "barcode_payload": product["sku"],
+        "ean13_payload": ean13_code,
+        "label_dimensions_mm": {
+            "width": 101.6,
+            "height": 50.8
+        },
+        "print_specifications": {
+            "dpi": 300,
+            "quiet_zone_mm": 6.35,
+            "human_readable_text": True,
+            "barcode_height_mm": 25.4
+        }
+    })
