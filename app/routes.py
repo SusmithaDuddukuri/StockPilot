@@ -10,6 +10,7 @@ from .services import planning
 from .services.audit import record_event
 from .services import barcode_service
 from .services import cold_chain
+from .services import cross_docking
 
 bp = Blueprint("main", __name__)
 
@@ -1209,4 +1210,56 @@ def cold_chain_status():
             "escalation_contact": "Warehouse Cold Chain Officer",
             "regulatory_framework": "WHO Good Distribution Practices (GDP) Standards"
         }
+    })
+
+
+@bp.post("/api/cross-dock/match")
+def match_cross_dock():
+    """Evaluate arriving stock and route directly to outbound staging lanes without putaway."""
+    data = request.get_json(silent=True) or {}
+    sku = data.get("sku", "")
+    quantity = data.get("quantity")
+    bay = data.get("bay", "BAY-IN-01")
+
+    if not sku or quantity is None:
+        return jsonify(error="sku and quantity are required."), 400
+
+    with db() as cx:
+        open_orders = cx.execute("""
+            SELECT id, customer, status, item_count, destination
+            FROM orders
+            WHERE LOWER(status) IN ('awaiting stock', 'picking')
+            ORDER BY created_at ASC
+        """).fetchall()
+
+    try:
+        plan = cross_docking.plan_cross_dock_allocation(
+            sku,
+            quantity,
+            [dict(o) for o in open_orders],
+            bay
+        )
+    except Exception as exc:
+        return jsonify(error=str(exc)), 400
+
+    if plan["cross_docked_units"] > 0:
+        with db() as cx:
+            record_event(
+                cx,
+                "warehouse.cross_dock",
+                "sku",
+                sku,
+                f"Cross-docked {plan['cross_docked_units']} units of {sku} directly to outbound staging."
+            )
+
+    return jsonify(plan), 200
+
+
+@bp.get("/api/cross-dock/lanes")
+def list_cross_dock_lanes():
+    """Return configured warehouse staging lanes and current status."""
+    return jsonify({
+        "staging_lanes": cross_docking.STAGING_LANES,
+        "staging_policy": "First Expired First Out & Dynamic Staging Allocation",
+        "maximum_dwell_time_hours": 12
     })
