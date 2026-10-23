@@ -853,3 +853,145 @@ def dynamic_safety_stock():
         "total_recommended_reorder_cost": round(total_reorder_cost, 2),
         "skus": skus
     })
+
+
+@bp.get("/api/shipping/manifest")
+def shipping_manifest():
+    """Generate carrier trailer dispatch manifest and bill of lading report."""
+    carrier_filter = request.args.get("carrier", "").strip()
+    status_filter = request.args.get("status", "").strip()
+
+    with db() as cx:
+        query = """
+            SELECT 
+                sh.id,
+                sh.shipment_number,
+                sh.carrier,
+                sh.tracking_number,
+                sh.status,
+                sh.shipped_at,
+                sh.delivered_at,
+                sh.created_at,
+                COALESCE(o.customer, 'Direct Client') as customer,
+                COALESCE(o.destination, 'Distribution Hub') as destination,
+                COALESCE(o.item_count, 1) as item_count,
+                COALESCE(o.status, 'Ready for Dispatch') as order_status
+            FROM shipments sh
+            LEFT JOIN orders o ON sh.order_id = o.id
+        """
+        clauses = []
+        params = []
+        if carrier_filter:
+            clauses.append("LOWER(sh.carrier) = LOWER(?)")
+            params.append(carrier_filter)
+        if status_filter:
+            clauses.append("LOWER(sh.status) = LOWER(?)")
+            params.append(status_filter)
+
+        if clauses:
+            query += " WHERE " + " AND ".join(clauses)
+
+        query += " ORDER BY sh.created_at DESC"
+        rows = cx.execute(query, params).fetchall()
+
+    shipments = []
+    total_packages = len(rows)
+    total_units = 0
+    destinations = set()
+    carriers = set()
+
+    for r in rows:
+        units = int(r["item_count"])
+        total_units += units
+        destinations.add(r["destination"])
+        carriers.add(r["carrier"])
+
+        shipments.append({
+            "shipment_number": r["shipment_number"],
+            "order_status": r["order_status"],
+            "carrier": r["carrier"],
+            "tracking_number": r["tracking_number"] or "PENDING-LABEL",
+            "status": r["status"],
+            "recipient_customer": r["customer"],
+            "destination_city": r["destination"],
+            "package_item_count": units,
+            "created_at": r["created_at"],
+            "shipped_at": r["shipped_at"] or None,
+            "dispatch_verified": bool(r["shipped_at"] or r["status"] in ("In transit", "Delivered"))
+        })
+
+    manifest_id = f"MNF-{abs(hash(carrier_filter or 'ALL')) % 100000:05d}"
+
+    return jsonify({
+        "manifest_reference": manifest_id,
+        "carrier_filter": carrier_filter or "ALL_CARRIERS",
+        "status_filter": status_filter or "ALL_STATUSES",
+        "total_shipments": total_packages,
+        "total_items_to_dispatch": total_units,
+        "distinct_destinations_count": len(destinations),
+        "active_carriers": sorted(list(carriers)),
+        "shipments": shipments
+    })
+
+
+@bp.get("/api/shipping/manifest.csv")
+def export_shipping_manifest_csv():
+    """Export shipping manifest as a carrier-compliant CSV document."""
+    carrier_filter = request.args.get("carrier", "").strip()
+    status_filter = request.args.get("status", "").strip()
+
+    with db() as cx:
+        query = """
+            SELECT 
+                sh.shipment_number,
+                sh.carrier,
+                sh.tracking_number,
+                sh.status,
+                COALESCE(o.customer, 'Direct Client') as customer,
+                COALESCE(o.destination, 'Distribution Hub') as destination,
+                COALESCE(o.item_count, 1) as item_count,
+                sh.created_at
+            FROM shipments sh
+            LEFT JOIN orders o ON sh.order_id = o.id
+        """
+        clauses = []
+        params = []
+        if carrier_filter:
+            clauses.append("LOWER(sh.carrier) = LOWER(?)")
+            params.append(carrier_filter)
+        if status_filter:
+            clauses.append("LOWER(sh.status) = LOWER(?)")
+            params.append(status_filter)
+
+        if clauses:
+            query += " WHERE " + " AND ".join(clauses)
+
+        query += " ORDER BY sh.created_at DESC"
+        rows = cx.execute(query, params).fetchall()
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow([
+        "Shipment Number", "Carrier", "Tracking Number", "Status",
+        "Customer", "Destination", "Item Count", "Created At"
+    ])
+
+    for r in rows:
+        writer.writerow([
+            r["shipment_number"],
+            r["carrier"],
+            r["tracking_number"] or "N/A",
+            r["status"],
+            r["customer"],
+            r["destination"],
+            r["item_count"],
+            r["created_at"]
+        ])
+
+    csv_data = output.getvalue()
+    filename = f"shipping-manifest-{carrier_filter or 'all'}.csv"
+    return Response(
+        csv_data,
+        mimetype="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+    )
