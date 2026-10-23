@@ -12,6 +12,7 @@ from .services import barcode_service
 from .services import cold_chain
 from .services import cross_docking
 from .services import delivery_exceptions
+from .services import carrier_compliance
 
 bp = Blueprint("main", __name__)
 
@@ -1378,3 +1379,57 @@ def list_active_exceptions():
         "shipments": [dict(r) for r in rows],
         "standard_resolution_sla_hours": 24
     })
+
+
+@bp.get("/api/carrier-compliance/scorecards")
+def carrier_compliance_scorecards():
+    """Evaluate and benchmark carrier performance against contractual SLA targets."""
+    carrier_param = request.args.get("carrier", "").strip()
+
+    with db() as cx:
+        query = "SELECT shipment_number, carrier, status, created_at, delivered_at FROM shipments"
+        params = []
+        if carrier_param:
+            query += " WHERE LOWER(carrier) = LOWER(?)"
+            params.append(carrier_param)
+        rows = cx.execute(query, params).fetchall()
+
+    carrier_groups = {}
+    for r in rows:
+        c_name = r["carrier"] or "Unassigned Carrier"
+        if c_name not in carrier_groups:
+            carrier_groups[c_name] = []
+        carrier_groups[c_name].append(dict(r))
+
+    scorecards = []
+    for c_name, shipments in sorted(carrier_groups.items()):
+        scorecards.append(carrier_compliance.compute_carrier_scorecard(c_name, shipments))
+
+    return jsonify({
+        "carrier_count": len(scorecards),
+        "target_sla_percentage": carrier_compliance.TARGET_SLA_ON_TIME_PCT,
+        "scorecards": scorecards
+    }), 200
+
+
+@bp.get("/api/carrier-compliance/audit-summary")
+def carrier_compliance_audit_summary():
+    """Return executive summary of logistics network SLA compliance and breach alerts."""
+    with db() as cx:
+        rows = cx.execute("SELECT carrier, status FROM shipments").fetchall()
+
+    total = len(rows)
+    delivered = sum(1 for r in rows if r["status"].lower() == "delivered")
+    exceptions = sum(1 for r in rows if r["status"].lower() in ("exception", "returned"))
+    in_transit = sum(1 for r in rows if r["status"].lower() == "in transit")
+
+    network_on_time = round((delivered / (delivered + exceptions)) * 100, 1) if (delivered + exceptions) > 0 else 100.0
+
+    return jsonify({
+        "total_network_parcels": total,
+        "delivered_parcels": delivered,
+        "active_exceptions": exceptions,
+        "in_transit_parcels": in_transit,
+        "network_on_time_performance": network_on_time,
+        "network_status": "Healthy" if network_on_time >= 95.0 else "Action Required"
+    }), 200
