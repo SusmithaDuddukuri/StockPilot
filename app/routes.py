@@ -14,6 +14,7 @@ from .services import cross_docking
 from .services import delivery_exceptions
 from .services import carrier_compliance
 from .services import hazmat
+from .services import landed_cost
 
 bp = Blueprint("main", __name__)
 
@@ -1477,4 +1478,80 @@ def list_hazard_classes():
         "supported_classes": hazmat.HAZARD_CLASSES,
         "regulatory_governance": "OSHA 1910.120 & DOT 49 CFR Part 173 Guidelines",
         "spill_kit_inspection_frequency_days": 30
+    }), 200
+
+
+@bp.post("/api/finance/landed-cost/calculate")
+def calculate_landed_cost_endpoint():
+    """Calculate fully absorbed landed cost with freight, tariffs, and handling apportionment."""
+    data = request.get_json(silent=True) or {}
+    base_cost = data.get("base_unit_cost")
+    qty = data.get("quantity", 1)
+    freight = data.get("freight_charge", 0.0)
+    duty_pct = data.get("customs_duty_pct", 0.0)
+    ins_pct = data.get("cargo_insurance_pct", 0.0)
+    handling = data.get("handling_fee", 0.0)
+    sku = data.get("sku")
+
+    if base_cost is None:
+        return jsonify(error="base_unit_cost is required."), 400
+
+    try:
+        breakdown = landed_cost.compute_landed_unit_cost(
+            base_cost,
+            qty,
+            freight,
+            duty_pct,
+            ins_pct,
+            handling
+        )
+    except Exception as exc:
+        return jsonify(error=str(exc)), 400
+
+    if sku:
+        breakdown["sku"] = sku
+
+    return jsonify(breakdown), 200
+
+
+@bp.get("/api/finance/landed-cost/catalog-estimates")
+def catalog_landed_cost_estimates():
+    """Project landed costs across all active catalog products using standard baseline surcharges."""
+    # Standard import overhead baseline: 8% freight factor, 5% duty, 1% insurance
+    with db() as cx:
+        products = cx.execute("SELECT sku, name, category, unit_cost, quantity, supplier FROM products").fetchall()
+
+    estimates = []
+    total_base_val = 0.0
+    total_landed_val = 0.0
+
+    for p in products:
+        cost = float(p["unit_cost"])
+        qty = max(1, int(p["quantity"]))
+        calc = landed_cost.compute_landed_unit_cost(
+            base_unit_cost=cost,
+            quantity=qty,
+            total_freight_charge=cost * qty * 0.08,
+            customs_duty_pct=5.0,
+            cargo_insurance_pct=1.0,
+            drayage_handling_fee=10.0
+        )
+        total_base_val += cost * qty
+        total_landed_val += calc["total_landed_shipment_value"]
+
+        estimates.append({
+            "sku": p["sku"],
+            "name": p["name"],
+            "supplier": p["supplier"],
+            "base_cost": cost,
+            "projected_landed_unit_cost": calc["final_landed_unit_cost"],
+            "effective_markup_pct": calc["overhead_markup_percentage"]
+        })
+
+    return jsonify({
+        "catalog_size": len(estimates),
+        "total_catalog_base_valuation": round(total_base_val, 2),
+        "total_catalog_landed_valuation": round(total_landed_val, 2),
+        "valuation_spread": round(total_landed_val - total_base_val, 2),
+        "products": estimates
     }), 200
