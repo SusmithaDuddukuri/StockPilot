@@ -54,6 +54,15 @@ class StockPilotTests(unittest.TestCase):
         self.assertIn('text/csv', r.content_type)
         self.assertIn(b'SKU,Product,Category', r.data)
 
+    def test_warehouse_bin_utilization(self):
+        r = self.client.get('/api/warehouse/bin-utilization')
+        self.assertEqual(r.status_code, 200)
+        data = r.get_json()
+        self.assertIn('bins', data)
+        self.assertGreater(data['bin_count'], 0)
+        self.assertIn('overall_utilization_percent', data)
+        self.assertTrue(all('zone' in b for b in data['bins']))
+
 if __name__ == '__main__': unittest.main()
 
 class OperationsAPITests(unittest.TestCase):
