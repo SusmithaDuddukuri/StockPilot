@@ -7,6 +7,7 @@ from flask import Blueprint, current_app, jsonify, render_template, request, Res
 
 from .store import connect
 from .services import planning
+from .services.audit import record_event
 from .services import barcode_service
 
 bp = Blueprint("main", __name__)
@@ -129,7 +130,7 @@ def add_product():
     if not validate_sku(raw_sku):
         return jsonify(
             error=(
-                "SKU must be 1â€“40 characters and contain only "
+                "SKU must be 1Ã¢â‚¬â€œ40 characters and contain only "
                 "letters, numbers, hyphens, or underscores."
             )
         ), 400
@@ -1065,3 +1066,96 @@ def get_label_spec(sku):
             "barcode_height_mm": 25.4
         }
     })
+
+
+@bp.get("/api/orders/backorders/queue")
+def backorder_queue():
+    """Evaluate and rank pending backorders with inventory allocation estimates."""
+    with db() as cx:
+        orders = cx.execute("""
+            SELECT id, customer, status, item_count, destination, created_at
+            FROM orders
+            WHERE LOWER(status) = 'awaiting stock'
+            ORDER BY created_at ASC, id ASC
+        """).fetchall()
+
+        inventory_sum = cx.execute("SELECT COALESCE(SUM(quantity), 0) FROM products").fetchone()[0]
+
+    total_backordered_units = sum(int(o["item_count"]) for o in orders)
+    available_pool = int(inventory_sum)
+    remaining_pool = available_pool
+
+    queue = []
+    for rank, o in enumerate(orders, start=1):
+        req = int(o["item_count"])
+        allocated = min(req, remaining_pool)
+        remaining_pool -= allocated
+        shortage = req - allocated
+
+        fulfillment_pct = round((allocated / req) * 100, 1) if req > 0 else 100.0
+        status_flag = "Fully Allocatable" if shortage == 0 else ("Partially Allocatable" if allocated > 0 else "Blocked by Stockout")
+
+        queue.append({
+            "queue_position": rank,
+            "order_id": o["id"],
+            "customer": o["customer"],
+            "destination": o["destination"],
+            "item_count": req,
+            "units_allocatable": allocated,
+            "units_shortage": shortage,
+            "fulfillment_percentage": fulfillment_pct,
+            "allocation_posture": status_flag,
+            "created_at": o["created_at"]
+        })
+
+    return jsonify({
+        "backorder_count": len(orders),
+        "total_units_demanded": total_backordered_units,
+        "available_units_in_pool": available_pool,
+        "total_units_allocatable": available_pool - remaining_pool,
+        "unmet_shortage_units": max(0, total_backordered_units - available_pool),
+        "allocation_queue": queue
+    })
+
+
+@bp.post("/api/orders/backorders/release-to-picking")
+def release_backorders_to_picking():
+    """Transition allocatable backorders from 'Awaiting stock' to 'Picking'."""
+    data = request.get_json(silent=True) or {}
+    order_id = data.get("order_id")
+
+    with db() as cx:
+        if order_id is not None:
+            order = cx.execute(
+                "SELECT id, status, customer, item_count FROM orders WHERE id = ?",
+                (order_id,)
+            ).fetchone()
+            if not order:
+                return jsonify(error="Order not found."), 404
+            if order["status"].lower() != "awaiting stock":
+                return jsonify(error=f"Order is not in backorder state (current: {order['status']})."), 400
+
+            cx.execute("UPDATE orders SET status = 'Picking' WHERE id = ?", (order_id,))
+            record_event(cx, "orders.backorder_released", "order", str(order_id),
+                         f"Backorder released to picking for {order['customer']} ({order['item_count']} units).")
+            return jsonify(message=f"Order #{order_id} released from backorder queue to Picking.", released_orders=[order_id])
+
+        backorders = cx.execute(
+            "SELECT id, customer, item_count FROM orders WHERE LOWER(status) = 'awaiting stock' ORDER BY created_at ASC"
+        ).fetchall()
+
+        if not backorders:
+            return jsonify(message="No pending backorders to release.", released_count=0, released_orders=[])
+
+        released_ids = []
+        for o in backorders:
+            cx.execute("UPDATE orders SET status = 'Picking' WHERE id = ?", (o["id"],))
+            record_event(cx, "orders.backorder_released", "order", str(o["id"]),
+                         f"Automated release to picking for {o['customer']}.")
+            released_ids.append(o["id"])
+
+        return jsonify({
+            "message": f"Successfully released {len(released_ids)} backorders to Picking.",
+            "released_count": len(released_ids),
+            "released_orders": released_ids
+        })
