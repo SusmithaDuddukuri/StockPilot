@@ -9,6 +9,7 @@ from .store import connect
 from .services import planning
 from .services.audit import record_event
 from .services import barcode_service
+from .services import cold_chain
 
 bp = Blueprint("main", __name__)
 
@@ -1159,3 +1160,53 @@ def release_backorders_to_picking():
             "released_count": len(released_ids),
             "released_orders": released_ids
         })
+
+
+@bp.post("/api/cold-chain/log-reading")
+def log_cold_chain_reading():
+    """Log sensor temperature observation and trigger excursion containment if violated."""
+    data = request.get_json(silent=True) or {}
+    zone = str(data.get("zone", "Cold-Storage-01")).strip()
+    zone_type = str(data.get("zone_type", "refrigerated")).strip()
+    temp_val = data.get("temperature_celsius")
+    sensor_id = str(data.get("sensor_id", "SENSOR-DEFAULT")).strip()
+
+    if temp_val is None:
+        return jsonify(error="temperature_celsius is required."), 400
+
+    try:
+        evaluation = cold_chain.evaluate_temperature_reading(zone_type, temp_val)
+    except Exception as exc:
+        return jsonify(error=str(exc)), 400
+
+    record = {
+        "zone": zone,
+        "sensor_id": sensor_id,
+        **evaluation
+    }
+
+    with db() as cx:
+        if evaluation["is_excursion"]:
+            record_event(
+                cx,
+                "cold_chain.excursion",
+                "zone",
+                zone,
+                f"Excursion alert in {zone}: {evaluation['recorded_temperature']}C ({evaluation['status_detail']})"
+            )
+
+    return jsonify(record), 200
+
+
+@bp.get("/api/cold-chain/status")
+def cold_chain_status():
+    """Return configured cold storage profiles and real-time compliance standards."""
+    return jsonify({
+        "status": "active",
+        "supported_profiles": cold_chain.ZONE_TEMPERATURE_PROFILES,
+        "governance": {
+            "logging_frequency_minutes": 15,
+            "escalation_contact": "Warehouse Cold Chain Officer",
+            "regulatory_framework": "WHO Good Distribution Practices (GDP) Standards"
+        }
+    })
