@@ -394,3 +394,64 @@ def low_stock_alerts():
         "count": len(rows),
         "alerts": [dict(row) for row in rows]
     })
+@bp.get("/api/warehouse/bin-utilization")
+def warehouse_bin_utilization():
+    """Calculate storage bin utilization and zone distribution from live products."""
+    with db() as cx:
+        rows = cx.execute(
+            """
+            SELECT
+                location,
+                COUNT(sku) AS sku_count,
+                COALESCE(SUM(quantity), 0) AS total_units,
+                COALESCE(SUM(quantity * unit_cost), 0.0) AS total_value
+            FROM products
+            GROUP BY location
+            ORDER BY total_units DESC, location ASC
+            """
+        ).fetchall()
+
+    bins = []
+    default_bin_capacity = 250
+    total_capacity = 0
+    total_occupied = 0
+
+    for row in rows:
+        loc = row["location"]
+        units = int(row["total_units"])
+        val = round(float(row["total_value"]), 2)
+        skus = int(row["sku_count"])
+        cap = default_bin_capacity
+        total_capacity += cap
+        total_occupied += units
+        util_pct = round((units / cap) * 100, 2) if cap else 0.0
+
+        if util_pct >= 90.0:
+            status = "Near capacity"
+        elif util_pct >= 40.0:
+            status = "Balanced"
+        else:
+            status = "Underutilized"
+
+        zone = loc.split("-")[0] if "-" in loc else "General"
+
+        bins.append({
+            "location": loc,
+            "zone": zone,
+            "sku_count": skus,
+            "units": units,
+            "capacity": cap,
+            "utilization_percent": util_pct,
+            "status": status,
+            "inventory_value": val
+        })
+
+    overall_utilization = round((total_occupied / total_capacity * 100), 2) if total_capacity else 0.0
+
+    return jsonify({
+        "bin_count": len(bins),
+        "total_units": total_occupied,
+        "total_capacity": total_capacity,
+        "overall_utilization_percent": overall_utilization,
+        "bins": bins
+    })
