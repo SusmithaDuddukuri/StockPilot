@@ -107,6 +107,12 @@ CREATE TABLE IF NOT EXISTS audit_events (
 CREATE INDEX IF NOT EXISTS idx_purchase_order_status ON purchase_orders(status);
 CREATE INDEX IF NOT EXISTS idx_receipts_sku ON receipts(sku, created_at);
 CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_events(created_at DESC);
+CREATE TABLE IF NOT EXISTS safety_inspections (
+ id INTEGER PRIMARY KEY AUTOINCREMENT, inspection_number TEXT NOT NULL UNIQUE, zone TEXT NOT NULL,
+ inspector TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'Passed', findings TEXT NOT NULL DEFAULT '',
+ action_required TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_safety_zone ON safety_inspections(zone, created_at DESC);
 '''
 
 _original_init_db = init_db
