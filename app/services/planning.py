@@ -81,21 +81,56 @@ def economic_order_quantity(annual_demand, order_cost, annual_holding_cost):
 
 
 def inventory_abc(items):
-    """Classify items by cumulative extended value using the ABC method."""
+    """Classify inventory by descending extended value and cumulative value share."""
     normalized = []
+
     for item in items:
-        quantity = _positive(item.get('quantity', 0), 'Quantity', allow_zero=True)
-        cost = _positive(item.get('unit_cost', 0), 'Unit cost', allow_zero=True)
-        normalized.append({**item, 'extended_value': quantity * cost})
-    normalized.sort(key=lambda item: item['extended_value'], reverse=True)
-    total = sum(item['extended_value'] for item in normalized)
+        quantity = _positive(
+            item.get("quantity", 0),
+            "Quantity",
+            allow_zero=True,
+        )
+        cost = _positive(
+            item.get("unit_cost", 0),
+            "Unit cost",
+            allow_zero=True,
+        )
+        normalized.append({
+            **item,
+            "extended_value": quantity * cost,
+        })
+
+    normalized.sort(
+        key=lambda item: item["extended_value"],
+        reverse=True,
+    )
+
+    total = sum(item["extended_value"] for item in normalized)
     cumulative = 0.0
     result = []
+
     for item in normalized:
-        cumulative += item['extended_value']
-        share = cumulative / total if total else 0
-        category = 'A' if share <= 0.8 else ('B' if share <= 0.95 else 'C')
-        result.append({**item, 'value_share': round(item['extended_value'] / total, 4) if total else 0, 'cumulative_value_share': round(share, 4), 'abc_class': category})
+        value = item["extended_value"]
+        previous_share = cumulative / total if total else 0.0
+        cumulative += value
+        share = cumulative / total if total else 0.0
+
+        if total == 0:
+            category = "C"
+        elif previous_share < 0.80:
+            category = "A"
+        elif previous_share < 0.95:
+            category = "B"
+        else:
+            category = "C"
+
+        result.append({
+            **item,
+            "value_share": round(value / total, 4) if total else 0,
+            "cumulative_value_share": round(share, 4),
+            "abc_class": category,
+        })
+
     return result
 
 
