@@ -565,3 +565,77 @@ def export_catalog_manifest():
         "total_valuation": round(total_valuation, 2),
         "catalog": items
     })
+@bp.get("/api/replenishment/recommendations")
+def replenishment_recommendations():
+    """Generate intelligent replenishment suggestions based on buffer gaps and supplier lead times."""
+    with db() as cx:
+        rows = cx.execute(
+            """
+            SELECT
+                p.sku,
+                p.name,
+                p.category,
+                p.quantity,
+                p.reorder_level,
+                p.unit_cost,
+                p.supplier,
+                COALESCE(s.lead_days, 7) AS lead_days
+            FROM products p
+            LEFT JOIN suppliers s ON s.name = p.supplier AND s.active = 1
+            ORDER BY
+                CASE WHEN p.quantity = 0 THEN 0 ELSE 1 END,
+                (p.reorder_level - p.quantity) DESC,
+                p.name ASC
+            """
+        ).fetchall()
+
+    recommendations = []
+    total_estimated_budget = 0.0
+
+    for r in rows:
+        qty = int(r["quantity"])
+        reorder = int(r["reorder_level"])
+        cost = float(r["unit_cost"])
+        lead = int(r["lead_days"])
+
+        target_buffer = max(reorder * 2, 20)
+        suggested_order_qty = max(0, target_buffer - qty)
+
+        if suggested_order_qty > 0:
+            est_cost = round(suggested_order_qty * cost, 2)
+            total_estimated_budget += est_cost
+
+            if qty == 0:
+                urgency = "Critical"
+                action = "Expedited procurement needed immediately"
+            elif qty <= (reorder // 2):
+                urgency = "High"
+                action = "Issue purchase order promptly"
+            elif qty <= reorder:
+                urgency = "Moderate"
+                action = "Include in weekly vendor replenishment cycle"
+            else:
+                urgency = "Routine"
+                action = "Monitor stock run-rate"
+
+            recommendations.append({
+                "sku": r["sku"],
+                "name": r["name"],
+                "category": r["category"],
+                "on_hand": qty,
+                "reorder_level": reorder,
+                "lead_days": lead,
+                "target_buffer": target_buffer,
+                "suggested_order_units": suggested_order_qty,
+                "unit_cost": cost,
+                "estimated_order_cost": est_cost,
+                "supplier": r["supplier"],
+                "urgency": urgency,
+                "recommended_action": action
+            })
+
+    return jsonify({
+        "item_count": len(recommendations),
+        "total_estimated_budget": round(total_estimated_budget, 2),
+        "recommendations": recommendations
+    })
