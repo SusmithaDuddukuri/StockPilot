@@ -11,6 +11,7 @@ from .services.audit import record_event
 from .services import barcode_service
 from .services import cold_chain
 from .services import cross_docking
+from .services import delivery_exceptions
 
 bp = Blueprint("main", __name__)
 
@@ -1262,4 +1263,118 @@ def list_cross_dock_lanes():
         "staging_lanes": cross_docking.STAGING_LANES,
         "staging_policy": "First Expired First Out & Dynamic Staging Allocation",
         "maximum_dwell_time_hours": 12
+    })
+
+
+@bp.post("/api/shipping/exceptions/record")
+def record_delivery_exception():
+    """Flag a delivery exception for an in-transit parcel and assign resolution routing."""
+    data = request.get_json(silent=True) or {}
+    shipment_num = str(data.get("shipment_number", "")).strip().upper()
+    ex_type = str(data.get("exception_type", "CUSTOMER_UNAVAILABLE")).strip().upper()
+    attempts = data.get("attempt_count", 1)
+    notes = str(data.get("notes", "")).strip()
+
+    if not shipment_num:
+        return jsonify(error="shipment_number is required."), 400
+
+    try:
+        decision = delivery_exceptions.evaluate_exception_action(ex_type, attempts)
+    except Exception as exc:
+        return jsonify(error=str(exc)), 400
+
+    with db() as cx:
+        shipment = cx.execute(
+            "SELECT * FROM shipments WHERE shipment_number = ?",
+            (shipment_num,)
+        ).fetchone()
+
+        if not shipment:
+            return jsonify(error=f"Shipment {shipment_num} not found."), 404
+
+        cx.execute(
+            "UPDATE shipments SET status = ? WHERE shipment_number = ?",
+            (decision["shipment_state_target"], shipment_num)
+        )
+
+        record_event(
+            cx,
+            "shipment.exception_logged",
+            "shipment",
+            shipment_num,
+            f"Exception {ex_type} logged: {decision['instruction']} (Notes: {notes or 'None'})"
+        )
+
+    return jsonify({
+        "shipment_number": shipment_num,
+        "previous_status": shipment["status"],
+        "new_status": decision["shipment_state_target"],
+        "decision": decision
+    }), 200
+
+
+@bp.post("/api/shipping/exceptions/resolve")
+def resolve_delivery_exception():
+    """Resolve an open delivery exception via address reroute or scheduled redelivery."""
+    data = request.get_json(silent=True) or {}
+    shipment_num = str(data.get("shipment_number", "")).strip().upper()
+    ex_type = str(data.get("exception_type", "REROUTE_REQUESTED")).strip().upper()
+    new_dest = data.get("amended_destination")
+
+    if not shipment_num:
+        return jsonify(error="shipment_number is required."), 400
+
+    try:
+        decision = delivery_exceptions.evaluate_exception_action(ex_type, amended_address=new_dest)
+    except Exception as exc:
+        return jsonify(error=str(exc)), 400
+
+    with db() as cx:
+        shipment = cx.execute(
+            "SELECT * FROM shipments WHERE shipment_number = ?",
+            (shipment_num,)
+        ).fetchone()
+
+        if not shipment:
+            return jsonify(error=f"Shipment {shipment_num} not found."), 404
+
+        cx.execute(
+            "UPDATE shipments SET status = ? WHERE shipment_number = ?",
+            (decision["shipment_state_target"], shipment_num)
+        )
+
+        record_event(
+            cx,
+            "shipment.exception_resolved",
+            "shipment",
+            shipment_num,
+            f"Resolved {ex_type}: {decision['instruction']}"
+        )
+
+    return jsonify({
+        "shipment_number": shipment_num,
+        "resolved_status": decision["shipment_state_target"],
+        "decision": decision
+    }), 200
+
+
+@bp.get("/api/shipping/exceptions/active")
+def list_active_exceptions():
+    """Return all parcels currently under exception or return hold."""
+    with db() as cx:
+        rows = cx.execute("""
+            SELECT sh.shipment_number, sh.carrier, sh.tracking_number, sh.status,
+                   COALESCE(o.customer, 'Direct Client') as customer,
+                   COALESCE(o.destination, 'Hub') as destination,
+                   sh.created_at
+            FROM shipments sh
+            LEFT JOIN orders o ON sh.order_id = o.id
+            WHERE sh.status IN ('Exception', 'Returned')
+            ORDER BY sh.id DESC
+        """).fetchall()
+
+    return jsonify({
+        "exception_count": len(rows),
+        "shipments": [dict(r) for r in rows],
+        "standard_resolution_sla_hours": 24
     })
