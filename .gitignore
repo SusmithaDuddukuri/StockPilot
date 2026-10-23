@@ -11,3 +11,21 @@ htmlcov/
 dist/
 build/
 node_modules/
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+!.env.template
+!.env.sample
+*.pem
+*.key
+*.p12
+*.pfx
+*.cer
+*.crt
+secrets/
+secrets.*
+credentials.json
+service-account*.json
+token.json
