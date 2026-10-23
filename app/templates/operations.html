@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>StockPilot · Operations</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='operations.css') }}">
+</head>
+<body class="ops-body">
+  <header class="ops-topbar"><a class="ops-brand" href="/">StockPilot <span>WAREHOUSE OS</span></a><nav><a href="/">Overview</a><a class="active" href="/operations">Operations</a><a href="/api/ops/reports/valuation.csv">Export valuation</a></nav><span class="ops-status"><i></i> Systems operational</span></header>
+  <main class="ops-main">
+    <section class="ops-heading"><div><p class="eyebrow">WAREHOUSE CONTROL CENTER</p><h1>Operations workspace</h1><p>Coordinate purchasing, receipts, transfers, returns, dispatch, alerts and performance analytics from one place.</p></div><button id="refresh-all" class="ops-button primary">Refresh data ↻</button></section>
+    <section class="ops-metrics" id="ops-metrics"><article><span>Inventory SKUs</span><strong>—</strong><small>Active catalog</small></article><article><span>Units on hand</span><strong>—</strong><small>Across all bins</small></article><article><span>Open returns</span><strong>—</strong><small>Awaiting resolution</small></article><article><span>In-transit shipments</span><strong>—</strong><small>Carrier handoff complete</small></article></section>
+    <section class="ops-layout">
+      <aside class="ops-nav"><p>WORKFLOWS</p><button class="selected" data-panel="suppliers">Suppliers <span>01</span></button><button data-panel="purchase-orders">Purchase orders <span>02</span></button><button data-panel="receipts">Receiving <span>03</span></button><button data-panel="transfers">Stock transfers <span>04</span></button><button data-panel="returns">Returns <span>05</span></button><button data-panel="shipments">Shipments <span>06</span></button><button data-panel="cycle-counts">Cycle counts <span>07</span></button><button data-panel="reorder-recommendations">Reorder queue <span>08</span></button><button data-panel="planning">Demand planning <span>09</span></button><button data-panel="audit">Audit trail <span>10</span></button><button data-panel="alerts">Alert center <span>11</span></button><button data-panel="locations">Location analysis <span>12</span></button><button data-panel="supplier-scorecards">Supplier scorecards <span>13</span></button><button data-panel="order-analytics">Order analytics <span>14</span></button><button data-panel="movement-analytics">Movement analytics <span>15</span></button><button data-panel="policy-engine">Policy engine <span>16</span></button></aside>
+      <section class="ops-content"><div class="ops-panel-head"><div><p class="eyebrow" id="panel-kicker">PARTNERS</p><h2 id="panel-title">Suppliers</h2><p id="panel-description">Manage vendors and replenishment lead times.</p></div><button id="new-record" class="ops-button primary">＋ New supplier</button></div><div id="ops-notice" role="status" aria-live="polite"></div><div id="ops-table-wrap" class="ops-table-wrap"><div class="ops-loading">Loading warehouse records…</div></div></section>
+    </section>
+    <section class="ops-report-strip"><div><p class="eyebrow">REPORTING</p><h2>Operational reporting</h2><p>Download current valuation or a time-ordered event history for reconciliation.</p></div><div class="ops-report-actions"><a class="ops-button" href="/api/ops/reports/valuation.csv">Inventory valuation CSV</a><a class="ops-button" href="/api/ops/reports/activity.csv">Activity audit CSV</a><a class="ops-button" href="/api/ops/reports/summary">View summary JSON ↗</a></div></section>
+  </main>
+  <dialog id="record-dialog" class="ops-dialog"><form id="record-form" method="dialog"><div class="ops-dialog-head"><div><p class="eyebrow">WORKFLOW ENTRY</p><h2 id="dialog-title">New record</h2></div><button type="button" class="ops-close" id="close-dialog" aria-label="Close">×</button></div><div id="dialog-fields" class="ops-form-grid"></div><p class="ops-form-hint">Required fields are validated before saving. Stock-changing actions are recorded in the audit trail.</p><div class="ops-dialog-actions"><button type="button" id="cancel-dialog" class="ops-button">Cancel</button><button type="submit" class="ops-button primary">Save record</button></div></form></dialog>
+  <script src="{{ url_for('static', filename='operations.js') }}" defer></script>
+</body></html>

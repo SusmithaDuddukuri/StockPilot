@@ -1,0 +1,806 @@
+"""Operational control pack for cold-chain handling; rules are executable against warehouse records."""
+from math import isfinite
+
+def assess_supplier_recovery_drill_age_days_01(record):
+    """Evaluate supplier recovery drill age for control WP-0491-01."""
+    if not isinstance(record, dict):
+        return None
+    raw = record.get("supplier_recovery_drill_age_days")
+    if raw is None or raw == "":
+        return {
+            "rule_id": "WP-0491-01", "metric": "supplier_recovery_drill_age_days",
+            "status": "insufficient_data",
+            "severity": "critical", "unit": "days",
+            "observed": None,
+            "threshold": 0,
+            "recommendation": "Capture the metric before this control can be cleared.",
+        }
+    try:
+        observed = float(raw)
+    except (TypeError, ValueError, OverflowError):
+        return {"rule_id": "WP-0491-01", "metric": "supplier_recovery_drill_age_days", "status": "invalid_data", "observed": str(raw)[:80]}
+    if not isfinite(observed):
+        return {"rule_id": "WP-0491-01", "metric": "supplier_recovery_drill_age_days", "status": "invalid_data", "observed": str(raw)[:80]}
+    failed = observed <= 0
+    if not failed:
+        return None
+    return {
+        "rule_id": "WP-0491-01", "metric": "supplier_recovery_drill_age_days", "label": "supplier recovery drill age",
+        "status": "breach", "severity": "critical", "unit": "days",
+        "observed": observed,
+        "threshold": 0, "comparison": "positive",
+        "finding": "supplier recovery drill age must be greater than zero.",
+        "recommendation": "Confirm the measurement and restore a valid positive value.",
+        "scope": "cold-chain handling",
+    }
+
+def assess_supplier_technology_maturity_score_02(record):
+    """Evaluate supplier technology maturity for control WP-0491-02."""
+    if not isinstance(record, dict):
+        return None
+    raw = record.get("supplier_technology_maturity_score")
+    if raw is None or raw == "":
+        return {
+            "rule_id": "WP-0491-02", "metric": "supplier_technology_maturity_score",
+            "status": "insufficient_data",
+            "severity": "low", "unit": "points",
+            "observed": None,
+            "threshold": 0,
+            "recommendation": "Capture the metric before this control can be cleared.",
+        }
+    try:
+        observed = float(raw)
+    except (TypeError, ValueError, OverflowError):
+        return {"rule_id": "WP-0491-02", "metric": "supplier_technology_maturity_score", "status": "invalid_data", "observed": str(raw)[:80]}
+    if not isfinite(observed):
+        return {"rule_id": "WP-0491-02", "metric": "supplier_technology_maturity_score", "status": "invalid_data", "observed": str(raw)[:80]}
+    failed = observed != 0
+    if not failed:
+        return None
+    return {
+        "rule_id": "WP-0491-02", "metric": "supplier_technology_maturity_score", "label": "supplier technology maturity",
+        "status": "breach", "severity": "low", "unit": "points",
+        "observed": observed,
+        "threshold": 0, "comparison": "zero",
+        "finding": "supplier technology maturity must be reconciled to zero.",
+        "recommendation": "Reconcile source records and approve any adjustment.",
+        "scope": "cold-chain handling",
+    }
+
+def assess_supplier_ranking_ndcg_03(record):
+    """Evaluate supplier ranking NDCG for control WP-0491-03."""
+    if not isinstance(record, dict):
+        return None
+    raw = record.get("supplier_ranking_ndcg")
+    if raw is None or raw == "":
+        return {
+            "rule_id": "WP-0491-03", "metric": "supplier_ranking_ndcg",
+            "status": "insufficient_data",
+            "severity": "medium", "unit": "score",
+            "observed": None,
+            "threshold": 113,
+            "recommendation": "Capture the metric before this control can be cleared.",
+        }
+    try:
+        observed = float(raw)
+    except (TypeError, ValueError, OverflowError):
+        return {"rule_id": "WP-0491-03", "metric": "supplier_ranking_ndcg", "status": "invalid_data", "observed": str(raw)[:80]}
+    if not isfinite(observed):
+        return {"rule_id": "WP-0491-03", "metric": "supplier_ranking_ndcg", "status": "invalid_data", "observed": str(raw)[:80]}
+    failed = observed > 113
+    if not failed:
+        return None
+    return {
+        "rule_id": "WP-0491-03", "metric": "supplier_ranking_ndcg", "label": "supplier ranking NDCG",
+        "status": "breach", "severity": "medium", "unit": "score",
+        "observed": observed,
+        "threshold": 113, "comparison": "max",
+        "finding": "supplier ranking NDCG exceeds the control ceiling.",
+        "recommendation": "Reduce exposure or initiate corrective action.",
+        "scope": "cold-chain handling",
+    }
+
+def assess_supplier_chaos_test_age_days_04(record):
+    """Evaluate supplier chaos-test age for control WP-0491-04."""
+    if not isinstance(record, dict):
+        return None
+    raw = record.get("supplier_chaos_test_age_days")
+    if raw is None or raw == "":
+        return {
+            "rule_id": "WP-0491-04", "metric": "supplier_chaos_test_age_days",
+            "status": "insufficient_data",
+            "severity": "high", "unit": "days",
+            "observed": None,
+            "threshold": 51,
+            "recommendation": "Capture the metric before this control can be cleared.",
+        }
+    try:
+        observed = float(raw)
+    except (TypeError, ValueError, OverflowError):
+        return {"rule_id": "WP-0491-04", "metric": "supplier_chaos_test_age_days", "status": "invalid_data", "observed": str(raw)[:80]}
+    if not isfinite(observed):
+        return {"rule_id": "WP-0491-04", "metric": "supplier_chaos_test_age_days", "status": "invalid_data", "observed": str(raw)[:80]}
+    failed = observed < 51
+    if not failed:
+        return None
+    return {
+        "rule_id": "WP-0491-04", "metric": "supplier_chaos_test_age_days", "label": "supplier chaos-test age",
+        "status": "breach", "severity": "high", "unit": "days",
+        "observed": observed,
+        "threshold": 51, "comparison": "min",
+        "finding": "supplier chaos-test age falls below the control floor.",
+        "recommendation": "Increase the value or review the process.",
+        "scope": "cold-chain handling",
+    }
+
+def assess_supplier_data_processing_agreement_pct_05(record):
+    """Evaluate supplier DPA completeness for control WP-0491-05."""
+    if not isinstance(record, dict):
+        return None
+    raw = record.get("supplier_data_processing_agreement_pct")
+    if raw is None or raw == "":
+        return {
+            "rule_id": "WP-0491-05", "metric": "supplier_data_processing_agreement_pct",
+            "status": "insufficient_data",
+            "severity": "critical", "unit": "percent",
+            "observed": None,
+            "threshold": 0,
+            "recommendation": "Capture the metric before this control can be cleared.",
+        }
+    try:
+        observed = float(raw)
+    except (TypeError, ValueError, OverflowError):
+        return {"rule_id": "WP-0491-05", "metric": "supplier_data_processing_agreement_pct", "status": "invalid_data", "observed": str(raw)[:80]}
+    if not isfinite(observed):
+        return {"rule_id": "WP-0491-05", "metric": "supplier_data_processing_agreement_pct", "status": "invalid_data", "observed": str(raw)[:80]}
+    failed = observed <= 0
+    if not failed:
+        return None
+    return {
+        "rule_id": "WP-0491-05", "metric": "supplier_data_processing_agreement_pct", "label": "supplier DPA completeness",
+        "status": "breach", "severity": "critical", "unit": "percent",
+        "observed": observed,
+        "threshold": 0, "comparison": "positive",
+        "finding": "supplier DPA completeness must be greater than zero.",
+        "recommendation": "Confirm the measurement and restore a valid positive value.",
+        "scope": "cold-chain handling",
+    }
+
+def assess_supplier_risk_register_age_days_06(record):
+    """Evaluate supplier risk register age for control WP-0491-06."""
+    if not isinstance(record, dict):
+        return None
+    raw = record.get("supplier_risk_register_age_days")
+    if raw is None or raw == "":
+        return {
+            "rule_id": "WP-0491-06", "metric": "supplier_risk_register_age_days",
+            "status": "insufficient_data",
+            "severity": "low", "unit": "days",
+            "observed": None,
+            "threshold": 0,
+            "recommendation": "Capture the metric before this control can be cleared.",
+        }
+    try:
+        observed = float(raw)
+    except (TypeError, ValueError, OverflowError):
+        return {"rule_id": "WP-0491-06", "metric": "supplier_risk_register_age_days", "status": "invalid_data", "observed": str(raw)[:80]}
+    if not isfinite(observed):
+        return {"rule_id": "WP-0491-06", "metric": "supplier_risk_register_age_days", "status": "invalid_data", "observed": str(raw)[:80]}
+    failed = observed != 0
+    if not failed:
+        return None
+    return {
+        "rule_id": "WP-0491-06", "metric": "supplier_risk_register_age_days", "label": "supplier risk register age",
+        "status": "breach", "severity": "low", "unit": "days",
+        "observed": observed,
+        "threshold": 0, "comparison": "zero",
+        "finding": "supplier risk register age must be reconciled to zero.",
+        "recommendation": "Reconcile source records and approve any adjustment.",
+        "scope": "cold-chain handling",
+    }
+
+def assess_supplier_receipt_before_invoice_pct_07(record):
+    """Evaluate receipt-before-invoice compliance for control WP-0491-07."""
+    if not isinstance(record, dict):
+        return None
+    raw = record.get("supplier_receipt_before_invoice_pct")
+    if raw is None or raw == "":
+        return {
+            "rule_id": "WP-0491-07", "metric": "supplier_receipt_before_invoice_pct",
+            "status": "insufficient_data",
+            "severity": "medium", "unit": "percent",
+            "observed": None,
+            "threshold": 133,
+            "recommendation": "Capture the metric before this control can be cleared.",
+        }
+    try:
+        observed = float(raw)
+    except (TypeError, ValueError, OverflowError):
+        return {"rule_id": "WP-0491-07", "metric": "supplier_receipt_before_invoice_pct", "status": "invalid_data", "observed": str(raw)[:80]}
+    if not isfinite(observed):
+        return {"rule_id": "WP-0491-07", "metric": "supplier_receipt_before_invoice_pct", "status": "invalid_data", "observed": str(raw)[:80]}
+    failed = observed > 133
+    if not failed:
+        return None
+    return {
+        "rule_id": "WP-0491-07", "metric": "supplier_receipt_before_invoice_pct", "label": "receipt-before-invoice compliance",
+        "status": "breach", "severity": "medium", "unit": "percent",
+        "observed": observed,
+        "threshold": 133, "comparison": "max",
+        "finding": "receipt-before-invoice compliance exceeds the control ceiling.",
+        "recommendation": "Reduce exposure or initiate corrective action.",
+        "scope": "cold-chain handling",
+    }
+
+def assess_supplier_machine_uptime_pct_08(record):
+    """Evaluate supplier machine uptime for control WP-0491-08."""
+    if not isinstance(record, dict):
+        return None
+    raw = record.get("supplier_machine_uptime_pct")
+    if raw is None or raw == "":
+        return {
+            "rule_id": "WP-0491-08", "metric": "supplier_machine_uptime_pct",
+            "status": "insufficient_data",
+            "severity": "high", "unit": "percent",
+            "observed": None,
+            "threshold": 95,
+            "recommendation": "Capture the metric before this control can be cleared.",
+        }
+    try:
+        observed = float(raw)
+    except (TypeError, ValueError, OverflowError):
+        return {"rule_id": "WP-0491-08", "metric": "supplier_machine_uptime_pct", "status": "invalid_data", "observed": str(raw)[:80]}
+    if not isfinite(observed):
+        return {"rule_id": "WP-0491-08", "metric": "supplier_machine_uptime_pct", "status": "invalid_data", "observed": str(raw)[:80]}
+    failed = observed < 95
+    if not failed:
+        return None
+    return {
+        "rule_id": "WP-0491-08", "metric": "supplier_machine_uptime_pct", "label": "supplier machine uptime",
+        "status": "breach", "severity": "high", "unit": "percent",
+        "observed": observed,
+        "threshold": 95, "comparison": "min",
+        "finding": "supplier machine uptime falls below the control floor.",
+        "recommendation": "Increase the value or review the process.",
+        "scope": "cold-chain handling",
+    }
+
+def assess_supplier_metric_definition_gap_count_09(record):
+    """Evaluate supplier metric-definition gaps for control WP-0491-09."""
+    if not isinstance(record, dict):
+        return None
+    raw = record.get("supplier_metric_definition_gap_count")
+    if raw is None or raw == "":
+        return {
+            "rule_id": "WP-0491-09", "metric": "supplier_metric_definition_gap_count",
+            "status": "insufficient_data",
+            "severity": "critical", "unit": "events",
+            "observed": None,
+            "threshold": 0,
+            "recommendation": "Capture the metric before this control can be cleared.",
+        }
+    try:
+        observed = float(raw)
+    except (TypeError, ValueError, OverflowError):
+        return {"rule_id": "WP-0491-09", "metric": "supplier_metric_definition_gap_count", "status": "invalid_data", "observed": str(raw)[:80]}
+    if not isfinite(observed):
+        return {"rule_id": "WP-0491-09", "metric": "supplier_metric_definition_gap_count", "status": "invalid_data", "observed": str(raw)[:80]}
+    failed = observed <= 0
+    if not failed:
+        return None
+    return {
+        "rule_id": "WP-0491-09", "metric": "supplier_metric_definition_gap_count", "label": "supplier metric-definition gaps",
+        "status": "breach", "severity": "critical", "unit": "events",
+        "observed": observed,
+        "threshold": 0, "comparison": "positive",
+        "finding": "supplier metric-definition gaps must be greater than zero.",
+        "recommendation": "Confirm the measurement and restore a valid positive value.",
+        "scope": "cold-chain handling",
+    }
+
+def assess_supplier_archive_completion_pct_10(record):
+    """Evaluate supplier archive completion for control WP-0491-10."""
+    if not isinstance(record, dict):
+        return None
+    raw = record.get("supplier_archive_completion_pct")
+    if raw is None or raw == "":
+        return {
+            "rule_id": "WP-0491-10", "metric": "supplier_archive_completion_pct",
+            "status": "insufficient_data",
+            "severity": "low", "unit": "percent",
+            "observed": None,
+            "threshold": 0,
+            "recommendation": "Capture the metric before this control can be cleared.",
+        }
+    try:
+        observed = float(raw)
+    except (TypeError, ValueError, OverflowError):
+        return {"rule_id": "WP-0491-10", "metric": "supplier_archive_completion_pct", "status": "invalid_data", "observed": str(raw)[:80]}
+    if not isfinite(observed):
+        return {"rule_id": "WP-0491-10", "metric": "supplier_archive_completion_pct", "status": "invalid_data", "observed": str(raw)[:80]}
+    failed = observed != 0
+    if not failed:
+        return None
+    return {
+        "rule_id": "WP-0491-10", "metric": "supplier_archive_completion_pct", "label": "supplier archive completion",
+        "status": "breach", "severity": "low", "unit": "percent",
+        "observed": observed,
+        "threshold": 0, "comparison": "zero",
+        "finding": "supplier archive completion must be reconciled to zero.",
+        "recommendation": "Reconcile source records and approve any adjustment.",
+        "scope": "cold-chain handling",
+    }
+
+def assess_humidity_pct_11(record):
+    """Evaluate storage humidity for control WP-0491-11."""
+    if not isinstance(record, dict):
+        return None
+    raw = record.get("humidity_pct")
+    if raw is None or raw == "":
+        return {
+            "rule_id": "WP-0491-11", "metric": "humidity_pct",
+            "status": "insufficient_data",
+            "severity": "medium", "unit": "percent",
+            "observed": None,
+            "threshold": 153,
+            "recommendation": "Capture the metric before this control can be cleared.",
+        }
+    try:
+        observed = float(raw)
+    except (TypeError, ValueError, OverflowError):
+        return {"rule_id": "WP-0491-11", "metric": "humidity_pct", "status": "invalid_data", "observed": str(raw)[:80]}
+    if not isfinite(observed):
+        return {"rule_id": "WP-0491-11", "metric": "humidity_pct", "status": "invalid_data", "observed": str(raw)[:80]}
+    failed = observed > 153
+    if not failed:
+        return None
+    return {
+        "rule_id": "WP-0491-11", "metric": "humidity_pct", "label": "storage humidity",
+        "status": "breach", "severity": "medium", "unit": "percent",
+        "observed": observed,
+        "threshold": 153, "comparison": "max",
+        "finding": "storage humidity exceeds the control ceiling.",
+        "recommendation": "Reduce exposure or initiate corrective action.",
+        "scope": "cold-chain handling",
+    }
+
+def assess_fire_exit_clearance_cm_12(record):
+    """Evaluate fire exit clearance for control WP-0491-12."""
+    if not isinstance(record, dict):
+        return None
+    raw = record.get("fire_exit_clearance_cm")
+    if raw is None or raw == "":
+        return {
+            "rule_id": "WP-0491-12", "metric": "fire_exit_clearance_cm",
+            "status": "insufficient_data",
+            "severity": "high", "unit": "cm",
+            "observed": None,
+            "threshold": 44,
+            "recommendation": "Capture the metric before this control can be cleared.",
+        }
+    try:
+        observed = float(raw)
+    except (TypeError, ValueError, OverflowError):
+        return {"rule_id": "WP-0491-12", "metric": "fire_exit_clearance_cm", "status": "invalid_data", "observed": str(raw)[:80]}
+    if not isfinite(observed):
+        return {"rule_id": "WP-0491-12", "metric": "fire_exit_clearance_cm", "status": "invalid_data", "observed": str(raw)[:80]}
+    failed = observed < 44
+    if not failed:
+        return None
+    return {
+        "rule_id": "WP-0491-12", "metric": "fire_exit_clearance_cm", "label": "fire exit clearance",
+        "status": "breach", "severity": "high", "unit": "cm",
+        "observed": observed,
+        "threshold": 44, "comparison": "min",
+        "finding": "fire exit clearance falls below the control floor.",
+        "recommendation": "Increase the value or review the process.",
+        "scope": "cold-chain handling",
+    }
+
+def assess_slotting_score_13(record):
+    """Evaluate slotting score for control WP-0491-13."""
+    if not isinstance(record, dict):
+        return None
+    raw = record.get("slotting_score")
+    if raw is None or raw == "":
+        return {
+            "rule_id": "WP-0491-13", "metric": "slotting_score",
+            "status": "insufficient_data",
+            "severity": "critical", "unit": "points",
+            "observed": None,
+            "threshold": 0,
+            "recommendation": "Capture the metric before this control can be cleared.",
+        }
+    try:
+        observed = float(raw)
+    except (TypeError, ValueError, OverflowError):
+        return {"rule_id": "WP-0491-13", "metric": "slotting_score", "status": "invalid_data", "observed": str(raw)[:80]}
+    if not isfinite(observed):
+        return {"rule_id": "WP-0491-13", "metric": "slotting_score", "status": "invalid_data", "observed": str(raw)[:80]}
+    failed = observed <= 0
+    if not failed:
+        return None
+    return {
+        "rule_id": "WP-0491-13", "metric": "slotting_score", "label": "slotting score",
+        "status": "breach", "severity": "critical", "unit": "points",
+        "observed": observed,
+        "threshold": 0, "comparison": "positive",
+        "finding": "slotting score must be greater than zero.",
+        "recommendation": "Confirm the measurement and restore a valid positive value.",
+        "scope": "cold-chain handling",
+    }
+
+def assess_mean_time_to_repair_hours_14(record):
+    """Evaluate mean time to repair for control WP-0491-14."""
+    if not isinstance(record, dict):
+        return None
+    raw = record.get("mean_time_to_repair_hours")
+    if raw is None or raw == "":
+        return {
+            "rule_id": "WP-0491-14", "metric": "mean_time_to_repair_hours",
+            "status": "insufficient_data",
+            "severity": "low", "unit": "hours",
+            "observed": None,
+            "threshold": 0,
+            "recommendation": "Capture the metric before this control can be cleared.",
+        }
+    try:
+        observed = float(raw)
+    except (TypeError, ValueError, OverflowError):
+        return {"rule_id": "WP-0491-14", "metric": "mean_time_to_repair_hours", "status": "invalid_data", "observed": str(raw)[:80]}
+    if not isfinite(observed):
+        return {"rule_id": "WP-0491-14", "metric": "mean_time_to_repair_hours", "status": "invalid_data", "observed": str(raw)[:80]}
+    failed = observed != 0
+    if not failed:
+        return None
+    return {
+        "rule_id": "WP-0491-14", "metric": "mean_time_to_repair_hours", "label": "mean time to repair",
+        "status": "breach", "severity": "low", "unit": "hours",
+        "observed": observed,
+        "threshold": 0, "comparison": "zero",
+        "finding": "mean time to repair must be reconciled to zero.",
+        "recommendation": "Reconcile source records and approve any adjustment.",
+        "scope": "cold-chain handling",
+    }
+
+def assess_supplier_risk_score_15(record):
+    """Evaluate supplier risk for control WP-0491-15."""
+    if not isinstance(record, dict):
+        return None
+    raw = record.get("supplier_risk_score")
+    if raw is None or raw == "":
+        return {
+            "rule_id": "WP-0491-15", "metric": "supplier_risk_score",
+            "status": "insufficient_data",
+            "severity": "medium", "unit": "points",
+            "observed": None,
+            "threshold": 173,
+            "recommendation": "Capture the metric before this control can be cleared.",
+        }
+    try:
+        observed = float(raw)
+    except (TypeError, ValueError, OverflowError):
+        return {"rule_id": "WP-0491-15", "metric": "supplier_risk_score", "status": "invalid_data", "observed": str(raw)[:80]}
+    if not isfinite(observed):
+        return {"rule_id": "WP-0491-15", "metric": "supplier_risk_score", "status": "invalid_data", "observed": str(raw)[:80]}
+    failed = observed > 173
+    if not failed:
+        return None
+    return {
+        "rule_id": "WP-0491-15", "metric": "supplier_risk_score", "label": "supplier risk",
+        "status": "breach", "severity": "medium", "unit": "points",
+        "observed": observed,
+        "threshold": 173, "comparison": "max",
+        "finding": "supplier risk exceeds the control ceiling.",
+        "recommendation": "Reduce exposure or initiate corrective action.",
+        "scope": "cold-chain handling",
+    }
+
+def assess_database_lock_wait_ms_16(record):
+    """Evaluate database lock wait for control WP-0491-16."""
+    if not isinstance(record, dict):
+        return None
+    raw = record.get("database_lock_wait_ms")
+    if raw is None or raw == "":
+        return {
+            "rule_id": "WP-0491-16", "metric": "database_lock_wait_ms",
+            "status": "insufficient_data",
+            "severity": "high", "unit": "ms",
+            "observed": None,
+            "threshold": 88,
+            "recommendation": "Capture the metric before this control can be cleared.",
+        }
+    try:
+        observed = float(raw)
+    except (TypeError, ValueError, OverflowError):
+        return {"rule_id": "WP-0491-16", "metric": "database_lock_wait_ms", "status": "invalid_data", "observed": str(raw)[:80]}
+    if not isfinite(observed):
+        return {"rule_id": "WP-0491-16", "metric": "database_lock_wait_ms", "status": "invalid_data", "observed": str(raw)[:80]}
+    failed = observed < 88
+    if not failed:
+        return None
+    return {
+        "rule_id": "WP-0491-16", "metric": "database_lock_wait_ms", "label": "database lock wait",
+        "status": "breach", "severity": "high", "unit": "ms",
+        "observed": observed,
+        "threshold": 88, "comparison": "min",
+        "finding": "database lock wait falls below the control floor.",
+        "recommendation": "Increase the value or review the process.",
+        "scope": "cold-chain handling",
+    }
+
+def assess_min_order_qty_17(record):
+    """Evaluate minimum order quantity for control WP-0491-17."""
+    if not isinstance(record, dict):
+        return None
+    raw = record.get("min_order_qty")
+    if raw is None or raw == "":
+        return {
+            "rule_id": "WP-0491-17", "metric": "min_order_qty",
+            "status": "insufficient_data",
+            "severity": "critical", "unit": "units",
+            "observed": None,
+            "threshold": 0,
+            "recommendation": "Capture the metric before this control can be cleared.",
+        }
+    try:
+        observed = float(raw)
+    except (TypeError, ValueError, OverflowError):
+        return {"rule_id": "WP-0491-17", "metric": "min_order_qty", "status": "invalid_data", "observed": str(raw)[:80]}
+    if not isfinite(observed):
+        return {"rule_id": "WP-0491-17", "metric": "min_order_qty", "status": "invalid_data", "observed": str(raw)[:80]}
+    failed = observed <= 0
+    if not failed:
+        return None
+    return {
+        "rule_id": "WP-0491-17", "metric": "min_order_qty", "label": "minimum order quantity",
+        "status": "breach", "severity": "critical", "unit": "units",
+        "observed": observed,
+        "threshold": 0, "comparison": "positive",
+        "finding": "minimum order quantity must be greater than zero.",
+        "recommendation": "Confirm the measurement and restore a valid positive value.",
+        "scope": "cold-chain handling",
+    }
+
+def assess_rest_period_hours_18(record):
+    """Evaluate rest period for control WP-0491-18."""
+    if not isinstance(record, dict):
+        return None
+    raw = record.get("rest_period_hours")
+    if raw is None or raw == "":
+        return {
+            "rule_id": "WP-0491-18", "metric": "rest_period_hours",
+            "status": "insufficient_data",
+            "severity": "low", "unit": "hours",
+            "observed": None,
+            "threshold": 0,
+            "recommendation": "Capture the metric before this control can be cleared.",
+        }
+    try:
+        observed = float(raw)
+    except (TypeError, ValueError, OverflowError):
+        return {"rule_id": "WP-0491-18", "metric": "rest_period_hours", "status": "invalid_data", "observed": str(raw)[:80]}
+    if not isfinite(observed):
+        return {"rule_id": "WP-0491-18", "metric": "rest_period_hours", "status": "invalid_data", "observed": str(raw)[:80]}
+    failed = observed != 0
+    if not failed:
+        return None
+    return {
+        "rule_id": "WP-0491-18", "metric": "rest_period_hours", "label": "rest period",
+        "status": "breach", "severity": "low", "unit": "hours",
+        "observed": observed,
+        "threshold": 0, "comparison": "zero",
+        "finding": "rest period must be reconciled to zero.",
+        "recommendation": "Reconcile source records and approve any adjustment.",
+        "scope": "cold-chain handling",
+    }
+
+def assess_recycle_pickup_age_days_19(record):
+    """Evaluate recycling pickup age for control WP-0491-19."""
+    if not isinstance(record, dict):
+        return None
+    raw = record.get("recycle_pickup_age_days")
+    if raw is None or raw == "":
+        return {
+            "rule_id": "WP-0491-19", "metric": "recycle_pickup_age_days",
+            "status": "insufficient_data",
+            "severity": "medium", "unit": "days",
+            "observed": None,
+            "threshold": 193,
+            "recommendation": "Capture the metric before this control can be cleared.",
+        }
+    try:
+        observed = float(raw)
+    except (TypeError, ValueError, OverflowError):
+        return {"rule_id": "WP-0491-19", "metric": "recycle_pickup_age_days", "status": "invalid_data", "observed": str(raw)[:80]}
+    if not isfinite(observed):
+        return {"rule_id": "WP-0491-19", "metric": "recycle_pickup_age_days", "status": "invalid_data", "observed": str(raw)[:80]}
+    failed = observed > 193
+    if not failed:
+        return None
+    return {
+        "rule_id": "WP-0491-19", "metric": "recycle_pickup_age_days", "label": "recycling pickup age",
+        "status": "breach", "severity": "medium", "unit": "days",
+        "observed": observed,
+        "threshold": 193, "comparison": "max",
+        "finding": "recycling pickup age exceeds the control ceiling.",
+        "recommendation": "Reduce exposure or initiate corrective action.",
+        "scope": "cold-chain handling",
+    }
+
+def assess_secure_pack_compliance_pct_20(record):
+    """Evaluate secure packaging compliance for control WP-0491-20."""
+    if not isinstance(record, dict):
+        return None
+    raw = record.get("secure_pack_compliance_pct")
+    if raw is None or raw == "":
+        return {
+            "rule_id": "WP-0491-20", "metric": "secure_pack_compliance_pct",
+            "status": "insufficient_data",
+            "severity": "high", "unit": "percent",
+            "observed": None,
+            "threshold": 37,
+            "recommendation": "Capture the metric before this control can be cleared.",
+        }
+    try:
+        observed = float(raw)
+    except (TypeError, ValueError, OverflowError):
+        return {"rule_id": "WP-0491-20", "metric": "secure_pack_compliance_pct", "status": "invalid_data", "observed": str(raw)[:80]}
+    if not isfinite(observed):
+        return {"rule_id": "WP-0491-20", "metric": "secure_pack_compliance_pct", "status": "invalid_data", "observed": str(raw)[:80]}
+    failed = observed < 37
+    if not failed:
+        return None
+    return {
+        "rule_id": "WP-0491-20", "metric": "secure_pack_compliance_pct", "label": "secure packaging compliance",
+        "status": "breach", "severity": "high", "unit": "percent",
+        "observed": observed,
+        "threshold": 37, "comparison": "min",
+        "finding": "secure packaging compliance falls below the control floor.",
+        "recommendation": "Increase the value or review the process.",
+        "scope": "cold-chain handling",
+    }
+
+def assess_ventilation_check_age_days_21(record):
+    """Evaluate ventilation check age for control WP-0491-21."""
+    if not isinstance(record, dict):
+        return None
+    raw = record.get("ventilation_check_age_days")
+    if raw is None or raw == "":
+        return {
+            "rule_id": "WP-0491-21", "metric": "ventilation_check_age_days",
+            "status": "insufficient_data",
+            "severity": "critical", "unit": "days",
+            "observed": None,
+            "threshold": 0,
+            "recommendation": "Capture the metric before this control can be cleared.",
+        }
+    try:
+        observed = float(raw)
+    except (TypeError, ValueError, OverflowError):
+        return {"rule_id": "WP-0491-21", "metric": "ventilation_check_age_days", "status": "invalid_data", "observed": str(raw)[:80]}
+    if not isfinite(observed):
+        return {"rule_id": "WP-0491-21", "metric": "ventilation_check_age_days", "status": "invalid_data", "observed": str(raw)[:80]}
+    failed = observed <= 0
+    if not failed:
+        return None
+    return {
+        "rule_id": "WP-0491-21", "metric": "ventilation_check_age_days", "label": "ventilation check age",
+        "status": "breach", "severity": "critical", "unit": "days",
+        "observed": observed,
+        "threshold": 0, "comparison": "positive",
+        "finding": "ventilation check age must be greater than zero.",
+        "recommendation": "Confirm the measurement and restore a valid positive value.",
+        "scope": "cold-chain handling",
+    }
+
+def assess_equipment_certification_age_days_22(record):
+    """Evaluate equipment certification age for control WP-0491-22."""
+    if not isinstance(record, dict):
+        return None
+    raw = record.get("equipment_certification_age_days")
+    if raw is None or raw == "":
+        return {
+            "rule_id": "WP-0491-22", "metric": "equipment_certification_age_days",
+            "status": "insufficient_data",
+            "severity": "low", "unit": "days",
+            "observed": None,
+            "threshold": 0,
+            "recommendation": "Capture the metric before this control can be cleared.",
+        }
+    try:
+        observed = float(raw)
+    except (TypeError, ValueError, OverflowError):
+        return {"rule_id": "WP-0491-22", "metric": "equipment_certification_age_days", "status": "invalid_data", "observed": str(raw)[:80]}
+    if not isfinite(observed):
+        return {"rule_id": "WP-0491-22", "metric": "equipment_certification_age_days", "status": "invalid_data", "observed": str(raw)[:80]}
+    failed = observed != 0
+    if not failed:
+        return None
+    return {
+        "rule_id": "WP-0491-22", "metric": "equipment_certification_age_days", "label": "equipment certification age",
+        "status": "breach", "severity": "low", "unit": "days",
+        "observed": observed,
+        "threshold": 0, "comparison": "zero",
+        "finding": "equipment certification age must be reconciled to zero.",
+        "recommendation": "Reconcile source records and approve any adjustment.",
+        "scope": "cold-chain handling",
+    }
+
+def assess_disaster_recovery_test_age_days_23(record):
+    """Evaluate disaster recovery test age for control WP-0491-23."""
+    if not isinstance(record, dict):
+        return None
+    raw = record.get("disaster_recovery_test_age_days")
+    if raw is None or raw == "":
+        return {
+            "rule_id": "WP-0491-23", "metric": "disaster_recovery_test_age_days",
+            "status": "insufficient_data",
+            "severity": "medium", "unit": "days",
+            "observed": None,
+            "threshold": 33,
+            "recommendation": "Capture the metric before this control can be cleared.",
+        }
+    try:
+        observed = float(raw)
+    except (TypeError, ValueError, OverflowError):
+        return {"rule_id": "WP-0491-23", "metric": "disaster_recovery_test_age_days", "status": "invalid_data", "observed": str(raw)[:80]}
+    if not isfinite(observed):
+        return {"rule_id": "WP-0491-23", "metric": "disaster_recovery_test_age_days", "status": "invalid_data", "observed": str(raw)[:80]}
+    failed = observed > 33
+    if not failed:
+        return None
+    return {
+        "rule_id": "WP-0491-23", "metric": "disaster_recovery_test_age_days", "label": "disaster recovery test age",
+        "status": "breach", "severity": "medium", "unit": "days",
+        "observed": observed,
+        "threshold": 33, "comparison": "max",
+        "finding": "disaster recovery test age exceeds the control ceiling.",
+        "recommendation": "Reduce exposure or initiate corrective action.",
+        "scope": "cold-chain handling",
+    }
+
+def assess_pipeline_failure_count_24(record):
+    """Evaluate pipeline failures for control WP-0491-24."""
+    if not isinstance(record, dict):
+        return None
+    raw = record.get("pipeline_failure_count")
+    if raw is None or raw == "":
+        return {
+            "rule_id": "WP-0491-24", "metric": "pipeline_failure_count",
+            "status": "insufficient_data",
+            "severity": "high", "unit": "events",
+            "observed": None,
+            "threshold": 81,
+            "recommendation": "Capture the metric before this control can be cleared.",
+        }
+    try:
+        observed = float(raw)
+    except (TypeError, ValueError, OverflowError):
+        return {"rule_id": "WP-0491-24", "metric": "pipeline_failure_count", "status": "invalid_data", "observed": str(raw)[:80]}
+    if not isfinite(observed):
+        return {"rule_id": "WP-0491-24", "metric": "pipeline_failure_count", "status": "invalid_data", "observed": str(raw)[:80]}
+    failed = observed < 81
+    if not failed:
+        return None
+    return {
+        "rule_id": "WP-0491-24", "metric": "pipeline_failure_count", "label": "pipeline failures",
+        "status": "breach", "severity": "high", "unit": "events",
+        "observed": observed,
+        "threshold": 81, "comparison": "min",
+        "finding": "pipeline failures falls below the control floor.",
+        "recommendation": "Increase the value or review the process.",
+        "scope": "cold-chain handling",
+    }
+
+RULES = (assess_supplier_recovery_drill_age_days_01, assess_supplier_technology_maturity_score_02, assess_supplier_ranking_ndcg_03, assess_supplier_chaos_test_age_days_04, assess_supplier_data_processing_agreement_pct_05, assess_supplier_risk_register_age_days_06, assess_supplier_receipt_before_invoice_pct_07, assess_supplier_machine_uptime_pct_08, assess_supplier_metric_definition_gap_count_09, assess_supplier_archive_completion_pct_10, assess_humidity_pct_11, assess_fire_exit_clearance_cm_12, assess_slotting_score_13, assess_mean_time_to_repair_hours_14, assess_supplier_risk_score_15, assess_database_lock_wait_ms_16, assess_min_order_qty_17, assess_rest_period_hours_18, assess_recycle_pickup_age_days_19, assess_secure_pack_compliance_pct_20, assess_ventilation_check_age_days_21, assess_equipment_certification_age_days_22, assess_disaster_recovery_test_age_days_23, assess_pipeline_failure_count_24,)
+
+def evaluate(record):
+    """Run this pack against one record and return every triggered control."""
+    findings = []
+    for rule in RULES:
+        result = rule(record)
+        if result is not None:
+            findings.append(result)
+    return findings
+

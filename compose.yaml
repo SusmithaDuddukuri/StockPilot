@@ -1,0 +1,12 @@
+services:
+  stockpilot:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      STOCKPILOT_SECRET: ${STOCKPILOT_SECRET:-replace-this-before-deployment}
+      STOCKPILOT_DB: /srv/stockpilot/instance/stockpilot.sqlite3
+    volumes:
+      - stockpilot-data:/srv/stockpilot/instance
+volumes:
+  stockpilot-data:
