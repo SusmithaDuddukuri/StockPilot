@@ -106,6 +106,22 @@ class OperationsAPITests(unittest.TestCase):
 
 
 
+
+    def test_inventory_quarantine_workflow(self):
+        hold = self.client.post('/api/ops/quarantine', json={
+            'quarantine_number': 'Q-LOT-TEST',
+            'sku': 'SKU-1042',
+            'quantity': 5,
+            'reason': 'Damaged outer box inspection'
+        })
+        self.assertEqual(hold.status_code, 201)
+        res = self.client.patch('/api/ops/quarantine/Q-LOT-TEST', json={
+            'status': 'Released',
+            'disposition': 'Release to Stock'
+        })
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.get_json()['status'], 'Released')
+
     def test_safety_inspection_workflow(self):
         created = self.client.post('/api/ops/inspections', json={
             'inspection_number': 'SAFE-AUDIT-A',
