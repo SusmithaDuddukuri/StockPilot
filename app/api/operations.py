@@ -673,3 +673,36 @@ def analytics_fulfillment_velocity():
         "destination_distribution": dest_counts,
         "backlog_sample": open_orders_list[:10]
     })
+@bp.get('/inspections')
+def inspections_list():
+    """Retrieve history of warehouse safety inspections."""
+    return jsonify(rows('SELECT * FROM safety_inspections ORDER BY id DESC LIMIT 500'))
+
+
+@bp.post('/inspections')
+def inspections_create():
+    """Record a warehouse safety walk audit inspection."""
+    data = body()
+    def work():
+        number = required_text(data, 'inspection_number', maximum=40).upper()
+        zone = required_text(data, 'zone', maximum=60)
+        inspector = optional_text(data, 'inspector', 100) or 'Safety Officer'
+        status = data.get('status', 'Passed')
+        if status not in {'Passed', 'Failed', 'Needs Attention', 'Corrected'}:
+            raise ValidationError('Invalid inspection status.')
+        findings = optional_text(data, 'findings', 500)
+        action_required = optional_text(data, 'action_required', 500)
+
+        with db() as cx:
+            cur = cx.execute(
+                """
+                INSERT INTO safety_inspections
+                (inspection_number, zone, inspector, status, findings, action_required)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (number, zone, inspector, status, findings, action_required)
+            )
+            record_event(cx, 'safety.inspection', 'safety_inspection', number, f'Safety inspection {number} in zone {zone} recorded with status {status}.', inspector)
+            return jsonify(dict(cx.execute('SELECT * FROM safety_inspections WHERE id = ?', (cur.lastrowid,)).fetchone())), 201
+
+    return handle_error(work)

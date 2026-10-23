@@ -105,6 +105,20 @@ class OperationsAPITests(unittest.TestCase):
 
 
 
+
+    def test_safety_inspection_workflow(self):
+        created = self.client.post('/api/ops/inspections', json={
+            'inspection_number': 'SAFE-AUDIT-A',
+            'zone': 'Aisle A - Pallet Racking',
+            'inspector': 'Lead Auditor',
+            'status': 'Passed',
+            'findings': 'Aisle clear and fire equipment accessible',
+            'action_required': 'None'
+        })
+        self.assertEqual(created.status_code, 201)
+        inspections = self.client.get('/api/ops/inspections').get_json()
+        self.assertTrue(any(i['inspection_number'] == 'SAFE-AUDIT-A' for i in inspections))
+
     def test_fulfillment_velocity_endpoint(self):
         response = self.client.get('/api/ops/analytics/fulfillment-velocity')
         self.assertEqual(response.status_code, 200)
