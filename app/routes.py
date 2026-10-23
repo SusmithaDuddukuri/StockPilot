@@ -6,6 +6,7 @@ import sqlite3
 from flask import Blueprint, current_app, jsonify, render_template, request, Response
 
 from .store import connect
+from .services import planning
 
 bp = Blueprint("main", __name__)
 
@@ -127,7 +128,7 @@ def add_product():
     if not validate_sku(raw_sku):
         return jsonify(
             error=(
-                "SKU must be 1–40 characters and contain only "
+                "SKU must be 1â€“40 characters and contain only "
                 "letters, numbers, hyphens, or underscores."
             )
         ), 400
@@ -735,4 +736,120 @@ def deadstock_analysis():
         "total_tied_up_capital": round(total_deadstock_value, 2),
         "total_at_risk_units": total_deadstock_units,
         "items": items
+    })
+
+
+@bp.get("/api/replenishment/dynamic-safety-stock")
+def dynamic_safety_stock():
+    """Calculate statistical safety stock, dynamic reorder points, and stockout risk."""
+    service_level = request.args.get("service_level", "95").strip()
+    service_factors = {
+        "90": 1.28,
+        "95": 1.65,
+        "99": 2.33,
+    }
+    z_factor = service_factors.get(service_level, 1.65)
+
+    with db() as cx:
+        products = cx.execute("""
+            SELECT 
+                p.sku,
+                p.name,
+                p.category,
+                p.quantity,
+                p.reorder_level,
+                p.unit_cost,
+                p.supplier,
+                COALESCE(s.lead_days, 7) as lead_days
+            FROM products p
+            LEFT JOIN suppliers s ON p.supplier = s.name
+            ORDER BY p.sku ASC
+        """).fetchall()
+
+        movements = cx.execute("""
+            SELECT sku, delta
+            FROM movements
+            WHERE delta < 0
+        """).fetchall()
+
+    demand_map = {}
+    for m in movements:
+        sku = m["sku"]
+        if sku not in demand_map:
+            demand_map[sku] = []
+        demand_map[sku].append(abs(int(m["delta"])))
+
+    skus = []
+    total_reorder_cost = 0.0
+    at_risk_count = 0
+    reorder_count = 0
+
+    for p in products:
+        sku = p["sku"]
+        on_hand = int(p["quantity"])
+        static_reorder = int(p["reorder_level"])
+        cost = float(p["unit_cost"])
+        lead_time = max(1, int(p["lead_days"]))
+
+        observed_demand = demand_map.get(sku, [max(1.0, round(static_reorder / 7.0, 2))])
+        velocity = planning.demand_velocity(observed_demand)
+        avg_daily = max(0.1, velocity["average_daily_units"])
+        stddev = velocity["standard_deviation"] if velocity["standard_deviation"] > 0 else round(avg_daily * 0.25, 2)
+
+        calculated_ss = planning.safety_stock(z_factor, stddev, lead_time)
+        dynamic_rop = planning.reorder_point(avg_daily, lead_time, calculated_ss)
+
+        if on_hand == 0:
+            posture = "Stockout"
+            priority = "Emergency"
+            at_risk_count += 1
+        elif on_hand < calculated_ss:
+            posture = "Critical Safety Breach"
+            priority = "High"
+            at_risk_count += 1
+        elif on_hand <= dynamic_rop:
+            posture = "Reorder Triggered"
+            priority = "Elevated"
+        elif on_hand > (dynamic_rop * 2.5):
+            posture = "Overstocked"
+            priority = "Low"
+        else:
+            posture = "Optimal Buffer"
+            priority = "Normal"
+
+        suggested_order_qty = max(0, (dynamic_rop * 2) - on_hand)
+        if suggested_order_qty > 0 and posture in ("Stockout", "Critical Safety Breach", "Reorder Triggered"):
+            reorder_count += 1
+            line_cost = round(suggested_order_qty * cost, 2)
+            total_reorder_cost += line_cost
+        else:
+            suggested_order_qty = 0
+            line_cost = 0.0
+
+        skus.append({
+            "sku": sku,
+            "name": p["name"],
+            "category": p["category"],
+            "on_hand": on_hand,
+            "static_reorder_level": static_reorder,
+            "lead_time_days": lead_time,
+            "average_daily_demand": avg_daily,
+            "demand_stddev": stddev,
+            "calculated_safety_stock": calculated_ss,
+            "dynamic_reorder_point": dynamic_rop,
+            "stock_posture": posture,
+            "priority": priority,
+            "suggested_order_units": suggested_order_qty,
+            "estimated_reorder_cost": line_cost,
+            "supplier": p["supplier"]
+        })
+
+    return jsonify({
+        "service_level_target": f"{service_level}%",
+        "z_score": z_factor,
+        "total_skus_evaluated": len(skus),
+        "at_risk_sku_count": at_risk_count,
+        "recommended_reorder_count": reorder_count,
+        "total_recommended_reorder_cost": round(total_reorder_cost, 2),
+        "skus": skus
     })
