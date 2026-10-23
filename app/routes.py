@@ -639,3 +639,100 @@ def replenishment_recommendations():
         "total_estimated_budget": round(total_estimated_budget, 2),
         "recommendations": recommendations
     })
+
+
+@bp.get("/api/reports/deadstock-analysis")
+def deadstock_analysis():
+    """Identify slow-moving and deadstock inventory with liquidation markdown recommendations."""
+    category_filter = request.args.get("category", "").strip()
+
+    with db() as cx:
+        query = """
+            SELECT 
+                p.sku,
+                p.name,
+                p.category,
+                p.quantity,
+                p.reorder_level,
+                p.unit_cost,
+                p.location,
+                p.supplier,
+                p.updated_at,
+                COUNT(m.id) as movement_count,
+                COALESCE(MAX(m.created_at), p.updated_at) as last_activity
+            FROM products p
+            LEFT JOIN movements m ON p.sku = m.sku
+        """
+        params = []
+        if category_filter:
+            query += " WHERE LOWER(p.category) = LOWER(?)"
+            params.append(category_filter)
+
+        query += " GROUP BY p.sku ORDER BY p.quantity * p.unit_cost DESC"
+        rows = cx.execute(query, params).fetchall()
+
+    items = []
+    total_deadstock_value = 0.0
+    total_deadstock_units = 0
+
+    for r in rows:
+        qty = int(r["quantity"])
+        cost = float(r["unit_cost"])
+        reorder = int(r["reorder_level"])
+        val = round(qty * cost, 2)
+        movements = int(r["movement_count"])
+
+        if qty > 0 and movements == 0:
+            classification = "Deadstock"
+            liquidation_discount = 0.40
+            liquidation_channel = "Secondary Wholesale / Clearance Auction"
+            recommended_action = "Initiate immediate inventory liquidation"
+            total_deadstock_value += val
+            total_deadstock_units += qty
+        elif qty > (reorder * 2) and movements <= 2:
+            classification = "Slow-moving"
+            liquidation_discount = 0.20
+            liquidation_channel = "Flash Sale / Bundle Offer"
+            recommended_action = "Apply promotional bundle pricing to accelerate turnover"
+            total_deadstock_value += val
+            total_deadstock_units += qty
+        elif qty == 0:
+            classification = "Depleted"
+            liquidation_discount = 0.0
+            liquidation_channel = "N/A"
+            recommended_action = "Review SKU continuation or archive"
+        else:
+            classification = "Active"
+            liquidation_discount = 0.0
+            liquidation_channel = "Standard Channels"
+            recommended_action = "Maintain regular replenishment cycle"
+
+        estimated_recovery_value = round(val * (1.0 - liquidation_discount), 2)
+
+        items.append({
+            "sku": r["sku"],
+            "name": r["name"],
+            "category": r["category"],
+            "quantity": qty,
+            "unit_cost": cost,
+            "inventory_value": val,
+            "location": r["location"],
+            "supplier": r["supplier"],
+            "movement_count": movements,
+            "last_activity": r["last_activity"],
+            "classification": classification,
+            "recommended_discount_pct": int(liquidation_discount * 100),
+            "estimated_recovery_value": estimated_recovery_value,
+            "liquidation_channel": liquidation_channel,
+            "recommended_action": recommended_action
+        })
+
+    deadstock_items = [i for i in items if i["classification"] in ("Deadstock", "Slow-moving")]
+
+    return jsonify({
+        "analyzed_sku_count": len(items),
+        "deadstock_sku_count": len(deadstock_items),
+        "total_tied_up_capital": round(total_deadstock_value, 2),
+        "total_at_risk_units": total_deadstock_units,
+        "items": items
+    })
