@@ -553,3 +553,74 @@ def policy_evaluate(pack_id):
         return jsonify(evaluate_records(pack_id, records))
     except ValueError as exc:
         return jsonify(error=str(exc)), 400
+@bp.get('/suppliers/performance-tiers')
+def suppliers_performance_tiers():
+    """Calculate supplier fulfillment metrics and assign tier rankings."""
+    with db() as cx:
+        suppliers = cx.execute(
+            """
+            SELECT
+                s.id,
+                s.code,
+                s.name,
+                s.lead_days,
+                s.active,
+                COUNT(DISTINCT po.id) AS total_pos,
+                SUM(CASE WHEN po.status = 'Received' THEN 1 ELSE 0 END) AS completed_pos,
+                SUM(CASE WHEN po.expected_date != '' AND po.expected_date < date('now')
+                         AND po.status NOT IN ('Received', 'Cancelled', 'Closed') THEN 1 ELSE 0 END) AS overdue_pos,
+                COALESCE(SUM(r.quantity), 0) AS units_supplied
+            FROM suppliers s
+            LEFT JOIN purchase_orders po ON po.supplier_id = s.id
+            LEFT JOIN receipts r ON r.purchase_order_id = po.id
+            GROUP BY s.id
+            ORDER BY s.name ASC
+            """
+        ).fetchall()
+
+    results = []
+    for s in suppliers:
+        total = int(s['total_pos'] or 0)
+        completed = int(s['completed_pos'] or 0)
+        overdue = int(s['overdue_pos'] or 0)
+        lead = int(s['lead_days'] or 0)
+
+        fulfillment_pct = round((completed / total * 100), 1) if total else 100.0
+        on_time_pct = round(max(0.0, (total - overdue) / total * 100), 1) if total else 100.0
+        composite_score = round((fulfillment_pct * 0.6) + (on_time_pct * 0.4), 1)
+
+        if total == 0:
+            tier = "Provisional"
+            tier_status = "No order history yet"
+        elif composite_score >= 90.0:
+            tier = "Gold"
+            tier_status = "Preferred partner"
+        elif composite_score >= 75.0:
+            tier = "Silver"
+            tier_status = "Standard partner"
+        elif composite_score >= 60.0:
+            tier = "Bronze"
+            tier_status = "Monitored partner"
+        else:
+            tier = "Needs Review"
+            tier_status = "Escalated performance review"
+
+        results.append({
+            "supplier_id": s["id"],
+            "code": s["code"],
+            "name": s["name"],
+            "lead_days": lead,
+            "total_orders": total,
+            "completed_orders": completed,
+            "overdue_orders": overdue,
+            "fulfillment_rate_percent": fulfillment_pct,
+            "on_time_rate_percent": on_time_pct,
+            "composite_score": composite_score,
+            "tier": tier,
+            "tier_status": tier_status
+        })
+
+    return jsonify({
+        "supplier_count": len(results),
+        "tiers": results
+    })

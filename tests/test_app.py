@@ -74,6 +74,15 @@ class OperationsAPITests(unittest.TestCase):
     def tearDown(self):
         self.tmp.cleanup()
 
+
+    def test_supplier_performance_tiers_endpoint(self):
+        response = self.client.get('/api/ops/suppliers/performance-tiers')
+        self.assertEqual(response.status_code, 200)
+        data = response.get_json()
+        self.assertIn('tiers', data)
+        self.assertGreaterEqual(data['supplier_count'], 4)
+        self.assertTrue(all('tier' in s and 'composite_score' in s for s in data['tiers']))
+
     def test_operational_health_and_seeded_suppliers(self):
         health = self.client.get('/api/ops/health')
         self.assertEqual(health.status_code, 200)
